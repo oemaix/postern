@@ -122,6 +122,48 @@ Agents read this file before design or implementation work, and they add to it w
 - **Avoid:** Do not use GPIO36 as an I2S data output, and do not treat reserved GPIO26 as a pin this component already drives.
 - **Why:** On the ESP32, GPIO36 is input-only. The Stamp Pico reference uses it for DIN ([D-0017](decisions.md#d-0017-reference-pins)). GPIO26 can drive a later headset-microphone output. That path is not in the component, so nothing reads or drives the pin.
 
+### P-0021 Ubuntu uid 1000
+
+- **Status:** Open
+- **Avoid:** Do not create the `vscode` user with `groupadd` or `useradd` at uid 1000.
+- **Why:** `ubuntu:26.04` already has user and group `ubuntu` at 1000:1000. `groupadd --gid 1000` exits 4, and the devcontainer image build stops before Nix is installed. `.devcontainer/Dockerfile` renames that account to `vscode` and keeps its groups, including `dialout`.
+
+### P-0022 Zsh exit status
+
+- **Status:** Open
+- **Avoid:** Do not start the interactive devshell zsh with no startup file.
+- **Why:** Nix's zsh loads `zsh/newuser` when `.zshrc` is missing. As uid 0 that installer returns 1, so a following `exit` closes the terminal with status 1. The devshell sets `ZDOTDIR` to `shell/`, whose `.zshrc` shows the working directory and ends successfully.
+
+### P-0023 Container uid
+
+- **Status:** Open
+- **Avoid:** Do not set `safe.directory` so `nix develop` will open this checkout. Do not turn `updateRemoteUserUID` on. Do not leave the running `vscode` user at the image uid when the workspace owner inside the container is different.
+- **Why:** Rootless Docker maps the host user to container uid 0. `updateRemoteUserUID` copies the host number into the image, so `vscode` does not own the workspace, and `postCreateCommand` stops with libgit2 error 7. `.devcontainer/entrypoint.sh` reads the owner inside the container and moves `vscode` onto it. When that owner is uid 0, the session home is `/root`. A `safe.directory` line in `~/.gitconfig` is lost on rebuild and does not fix the written uid.
+
+### P-0024 Host Nix store
+
+- **Status:** Open
+- **Avoid:** Do not `chown` `/nix` when it is a bind mount of the host store. Do not mount the host store read-write. Do not put a newline in `NIX_CONFIG`. Do not take the first profile under `/nix/var/nix/profiles/per-user/`. Do not leave `accept-flake-config` on.
+- **Why:** After the uid move the session home can be `/root`, so a home `nix.conf` is not the file Nix reads. The NixOS config bind-mounts the host `/nix` read-only. `NIX_CONFIG` is one line. A newline in `containerEnv` arrives as `\` and `n`, and `.devcontainer/nix.sh` rewrites that sequence. `/etc/nix/nix.conf` sets `accept-flake-config = false` and `sandbox = false`. The wrapper uses the host daemon when its socket is present, and selects the system profile, then the default profile, then the current user's profile.
+
+### P-0025 One devcontainer for every host
+
+- **Status:** Open
+- **Avoid:** Do not bind-mount the host `/nix` from **Postern (Nix on Ubuntu)**. Do not send a host that has no `/nix` through **Postern (NixOS host store)**.
+- **Why:** The mount hides the Nix store installed in the image. On a host with no `/nix`, Docker creates an empty directory and the image `nix` is gone ([D-0018](decisions.md#d-0018-devcontainer)).
+
+### P-0026 Floating Nix installer
+
+- **Status:** Open
+- **Avoid:** Do not install Nix from `https://nixos.org/nix/install`.
+- **Why:** That URL is the current installer. A later image rebuild can change the Nix version. `.devcontainer/Dockerfile` pins Nix 2.35.4 ([D-0018](decisions.md#d-0018-devcontainer)).
+
+### P-0027 Checkout directory name
+
+- **Status:** Open
+- **Avoid:** Do not hardcode `/workspaces/postern` in the entrypoint or the image `WORKDIR`.
+- **Why:** Dev Containers mounts the checkout at `/workspaces/` plus the directory name. A clone under another name leaves `vscode` on the image uid ([P-0023](#p-0023-container-uid)). Both configs set `DEVCONTAINER_WORKSPACE` to `${containerWorkspaceFolder}`.
+
 ## Resolved
 
 ### P-0014 External codec

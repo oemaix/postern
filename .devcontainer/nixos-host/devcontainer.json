@@ -1,0 +1,33 @@
+{
+  "name": "Postern (NixOS host store)",
+  "build": {
+    "context": "..",
+    "dockerfile": "../Dockerfile"
+  },
+  "overrideCommand": false,
+  "init": true,
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": false,
+  "containerEnv": {
+    "NIX_CONFIG": "experimental-features = nix-command flakes",
+    "NIX_REMOTE": "daemon",
+    "DEVCONTAINER_WORKSPACE": "${containerWorkspaceFolder}"
+  },
+  "mounts": [
+    "source=/nix,target=/nix,type=bind,readonly"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "jnoortheen.nix-ide",
+        "editorconfig.editorconfig",
+        "DavidAnson.vscode-markdownlint",
+        "yzhang.markdown-all-in-one",
+        "ms-vscode.cpptools",
+        "ms-vscode.vscode-serial-monitor",
+        "ms-python.python"
+      ]
+    }
+  }
+}

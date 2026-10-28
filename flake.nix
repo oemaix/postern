@@ -23,6 +23,14 @@
             # ESP-IDF is the framework (D-0007). nixpkgs 26.05 has esptool,
             # not a packaged IDF or Xtensa toolchain. Do not add a third-party
             # ESP-IDF flake here until it builds against this nixpkgs pin.
+            # shell/.zshrc is the interactive prompt and keeps `exit` at 0 (P-0022).
+            shellHook = ''
+              zdotdir=${./shell}
+              if [ -n "''${ZDOTDIR:-}" ] && [ -f "''${ZDOTDIR}/.zshrc" ] && [ "''${ZDOTDIR}" != "$zdotdir" ]; then
+                export DEV_SAVED_ZDOTDIR="''${ZDOTDIR}"
+              fi
+              export ZDOTDIR="$zdotdir"
+            '';
             packages = with pkgs; [
               bashInteractive
               zsh

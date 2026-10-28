@@ -26,11 +26,18 @@ gcc -std=c11 -Wall -Wextra -Werror -I include -I src \
 
 ## Devcontainer
 
-`.devcontainer/` builds Ubuntu 26.04 and installs Nix for the `vscode` user. The image is a skeleton and has not been built here. `sandbox = false` is for the container only.
+The container is optional. `.devcontainer/Dockerfile` builds Ubuntu 26.04 and installs single-user Nix 2.35.4 for the `vscode` user ([D-0018](decisions.md#d-0018-devcontainer), [P-0026](pitfalls.md#p-0026-floating-nix-installer)). That user is the image's existing uid 1000 account, renamed ([P-0021](pitfalls.md#p-0021-ubuntu-uid-1000)). On start, `.devcontainer/entrypoint.sh` moves that account onto the workspace owner. The path is `DEVCONTAINER_WORKSPACE` ([P-0027](pitfalls.md#p-0027-checkout-directory-name)). `updateRemoteUserUID` stays off ([P-0023](pitfalls.md#p-0023-container-uid)).
+
+| Config | Who |
+| --- | --- |
+| **Postern (Nix on Ubuntu)** | A host without NixOS. The Nix store stays in the image. |
+| **Postern (NixOS host store)** | A NixOS host. The container bind-mounts that host's `/nix` read-only and uses its daemon ([P-0024](pitfalls.md#p-0024-host-nix-store), [P-0025](pitfalls.md#p-0025-one-devcontainer-for-every-host)). |
+
+`sandbox = false` and `accept-flake-config = false` are image settings. A rebuild is required after an entrypoint or client change. Those two files are copied into the image.
 
 ## Editor
 
-The default terminal profile runs `.vscode/nix-develop-terminal.sh`, which prefers zsh and otherwise uses bash.
+`.vscode/settings.json` defines **Nix Develop** as `nix develop` with `--command zsh`. zsh is a devshell package ([P-0022](pitfalls.md#p-0022-zsh-exit-status)). The image puts `/usr/local/bin` first on `PATH`, so `nix` in the container is the copied client.
 
 Required extensions:
 

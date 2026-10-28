@@ -23,6 +23,7 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 | [D-0015](#d-0015-python) | Undecided | The flake's Python is enough until a package is needed |
 | [D-0016](#d-0016-i2c-address) | Decided | 7-bit address `0x1D` |
 | [D-0017](#d-0017-reference-pins) | Decided | Stamp Pico GPIO defaults |
+| [D-0018](#d-0018-devcontainer) | Decided | Ubuntu 26.04, Nix 2.35.4, two host configs |
 
 ## Decided
 
@@ -148,6 +149,13 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 - **Choice:** The 7-bit address is `0x1D`. `POSTERN_I2C_ADDRESS` defaults to that value. `0x00` still means unset, and `postern_load_config` returns false for it.
 - **Source:** Project decision, 2026-10-29. The reference cable's Port A has no other slave. `0x1D` is inside the usable range `0x08`–`0x77`.
 - **Consequence:** Another board overrides the symbol in its sdkconfig. Do not hard-code `0x1D` in `src/` ([P-0007](pitfalls.md#p-0007-unset-config)).
+
+### D-0018 Devcontainer
+
+- **Status:** Decided
+- **Choice:** The optional container is Ubuntu 26.04 with single-user Nix 2.35.4. Reopen in Container offers **Postern (Nix on Ubuntu)** and **Postern (NixOS host store)**. They share `.devcontainer/Dockerfile`. The host-store config bind-mounts `/nix` read-only and uses the host daemon.
+- **Source:** The same container shape as Porta, 2026-10-29. Opening this repository alone needs its own image. Porta's container remains the one for the product checkout.
+- **Consequence:** The installer URL is pinned ([P-0026](pitfalls.md#p-0026-floating-nix-installer)). `sandbox = false` stays in the image. The entrypoint moves `vscode` onto the workspace owner inside the container ([P-0023](pitfalls.md#p-0023-container-uid)). `DEVCONTAINER_WORKSPACE` is that path ([P-0027](pitfalls.md#p-0027-checkout-directory-name)). Only the NixOS config mounts `/nix` ([P-0025](pitfalls.md#p-0025-one-devcontainer-for-every-host)). `/etc/nix/nix.conf` sets `accept-flake-config = false` ([P-0024](pitfalls.md#p-0024-host-nix-store)). The terminal profile is `.vscode/settings.json`. zsh comes from the devshell ([P-0022](pitfalls.md#p-0022-zsh-exit-status)).
 
 ## Undecided
 
