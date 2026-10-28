@@ -14,7 +14,15 @@ Nix only sees files Git knows about. Stage `flake.nix` before `nix flake lock` (
 
 ## Consuming the component
 
-Point the application's `EXTRA_COMPONENT_DIRS` at this repository, or place the checkout where the application already collects components. Set the six **Postern** options in that application's sdkconfig. Build and flash that application. This repository has no flashable image ([D-0002](decisions.md#d-0002-component)).
+Point the application's `EXTRA_COMPONENT_DIRS` at this repository, or place the checkout where the application already collects components. Set the six **Postern** options in that application's sdkconfig. The target is ESP32. Enable Classic Bluetooth and A2DP, and leave `BT_A2DP_USE_EXTERNAL_CODEC` and `CONFIG_I2C_ISR_IRAM_SAFE` unset ([P-0014](pitfalls.md#p-0014-external-codec), [P-0013](pitfalls.md#p-0013-i2c-iram)). Call `postern_init` from `app_main`. It returns `ESP_ERR_INVALID_STATE` while a GPIO is `-1` or the address is `0`. It calls `nvs_flash_init` and does not erase; on `ESP_ERR_NVS_NO_FREE_PAGES` or `ESP_ERR_NVS_NEW_VERSION_FOUND` the application erases and calls again. Build and flash that application with ESP-IDF 6.1. This repository has no flashable image ([D-0002](decisions.md#d-0002-component)).
+
+The register rules can be checked on the host, without the IDF:
+
+```sh
+gcc -std=c11 -Wall -Wextra -Werror -I include -I src \
+  src/postern_file.c tests/postern_file_test.c -o /tmp/postern_file_test
+/tmp/postern_file_test
+```
 
 ## Devcontainer
 

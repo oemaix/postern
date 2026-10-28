@@ -23,4 +23,4 @@ A board that already has an I2S master can gain Bluetooth headphones by compilin
 
 ## Phases
 
-Phase 0 is this skeleton. Phase 1 receives PCM and transmits SBC, with the I2C control path. AAC follows once SBC is stable. See [roadmap](roadmap.md).
+Phase 1 code receives PCM and transmits SBC, with the I2C control path. It has not been run on a board. AAC follows once SBC is stable. See [roadmap](roadmap.md).

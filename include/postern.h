@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "esp_err.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -31,3 +33,9 @@ typedef struct {
 /* Reads the compile-time Kconfig values. Returns false when any GPIO is
    unset or the I2C address is 0. Does not start I2S or Bluetooth. */
 bool postern_load_config(postern_config_t *config);
+
+/* Starts the I2C peripheral, the I2S slave, and Classic A2DP with the
+   built-in SBC encoder. PCM stays idle until the peer writes a legal rate
+   and start. ESP_ERR_INVALID_STATE means a GPIO or the address is unset,
+   or init already succeeded. */
+esp_err_t postern_init(void);

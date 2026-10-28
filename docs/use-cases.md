@@ -7,7 +7,7 @@ The actor is a consuming project, not a listener. Playback behaviour is what tha
 ## UC-01 Play the I2S stream
 
 - **Phase:** 1
-- **Preconditions:** The peer drives 16-bit stereo PCM at 44.1 kHz or 48 kHz. The build has set every GPIO and the I2C address. Headphones are paired as an A2DP sink.
+- **Preconditions:** The peer drives 16-bit stereo PCM at 44.1 kHz or 48 kHz. The build has set every GPIO and the I2C address. Postern pages the last address that connected. If there is none, or it does not answer, a sink is discoverable and Postern connects to the first device whose class of device includes rendering.
 - **Main flow:** PCM arrives on DIN. Headphones play it using SBC.
 - **Extensions:** When the headphones and the encoder both support AAC, the link uses AAC ([D-0006](decisions.md#d-0006-bluetooth-codecs)).
 

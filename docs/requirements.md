@@ -23,4 +23,4 @@ Phase 1 requirements are the acceptance bar for that phase. The phase 0 tree onl
 | NFR-03 | A clean Linux host with Nix can enter the devshell from `flake.nix`. |
 | NFR-04 | Decisions and pitfalls keep stable ids. |
 
-FR-02 through FR-05 are not implemented. FR-01 is the code in this tree.
+FR-01 through FR-05 are in the component for the SBC path. AAC in FR-03 is still later. None of this has been run on a board. `postern_init` still fails until the consuming project sets the GPIOs and the I2C address.

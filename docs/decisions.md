@@ -132,7 +132,7 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 
 - **Rate write:** One transaction starting at `0x04` carries all four bytes. Anything else leaves the accepted rate unchanged and sets the rate-rejected bit. A start while the accepted rate is unset or rejected does not set running.
 - **Source:** Project decision, 2026-10-28, accepting the register-file recommendation. The bits are the ones [D-0003](#d-0003-role) already named: rate, start, stop, and link status.
-- **Consequence:** The peripheral driver is not started. `0x00` remains the unset address in Kconfig ([P-0007](pitfalls.md#p-0007-unset-config), [P-0009](pitfalls.md#p-0009-partial-rate)).
+- **Consequence:** The peripheral driver is `src/postern_file.c`, started by `postern_init`. `0x00` remains the unset address in Kconfig, and init fails while it is unset ([P-0007](pitfalls.md#p-0007-unset-config), [P-0009](pitfalls.md#p-0009-partial-rate)).
 
 ## Undecided
 

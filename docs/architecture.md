@@ -38,8 +38,16 @@ The peer's GPIO numbers are not these numbers ([P-0001](pitfalls.md#p-0001-peer-
 
 ## Bluetooth
 
-A2DP source. SBC is the session that has to pass. AAC is next ([D-0006](decisions.md#d-0006-bluetooth-codecs), [P-0002](pitfalls.md#p-0002-aac-first)). The reference module is an M5Stamp Pico, which has no PSRAM ([D-0008](decisions.md#d-0008-target)).
+A2DP source against ESP-IDF 6.1. The data callback fills PCM, and Bluedroid's built-in encoder sends SBC. AAC is next ([D-0006](decisions.md#d-0006-bluetooth-codecs), [P-0002](pitfalls.md#p-0002-aac-first)). The consuming project leaves `BT_A2DP_USE_EXTERNAL_CODEC` unset ([P-0014](pitfalls.md#p-0014-external-codec)). The reference module is an M5Stamp Pico, which has no PSRAM ([D-0008](decisions.md#d-0008-target)).
+
+`postern_init` releases the BLE controller memory, enables Classic Bluetooth only, and advertises the name `Postern`. There is no display. Legacy pairing answers PIN `1234`. SSP Just Works is accepted in the callback ([P-0015](pitfalls.md#p-0015-open-pairing)). After a link has connected once, the next boot pages that address. Inquiry is the first attempt and the fallback, and it connects to the first device whose class of device includes rendering ([P-0012](pitfalls.md#p-0012-first-sink)). Inquiry is cancelled when the link comes up. I2C port 0 is the peripheral. The I2S channel is a slave and is enabled only after the stream starts. The A2DP data callback does not wait on I2S ([P-0017](pitfalls.md#p-0017-a2dp-callback)).
+
+## Register file
+
+The driver is `src/postern_file.c`, behind the I2C slave callbacks. A write's first byte is the offset. One transaction that starts at `0x04` and carries four bytes stores `44100` or `48000`. Any other write that touches those four bytes sets the rate-rejected bit and leaves the accepted rate unchanged ([P-0009](pitfalls.md#p-0009-partial-rate)). A different rate written while the stream is running does the same ([P-0011](pitfalls.md#p-0011-rate-while-running)). On the ESP32 the read callback runs once per transaction, so the reply is every byte from the current offset through the end of the file ([P-0016](pitfalls.md#p-0016-i2c-read)). Start sets the running bit only after A2DP has started and the sink accepted that rate. The headphones not offering the rate leaves running clear and does not mark the written rate illegal. Stop clears running. Suspend is sent only once a stream start has been requested. A start that arrives while that suspend is in flight is applied when the link returns to idle. The link can stay up.
+
+The I2C callbacks run in an interrupt. The consuming project leaves `CONFIG_I2C_ISR_IRAM_SAFE` unset ([P-0013](pitfalls.md#p-0013-i2c-iram)).
 
 ## What is not here
 
-No `main`, no partition table, and no sdkconfig. Those belong to the consuming project ([D-0002](decisions.md#d-0002-component)). `idf.py` is not in the devshell yet ([D-0010](decisions.md#d-0010-no-idf-yet)).
+No `main`, no partition table, and no sdkconfig. Those belong to the consuming project ([D-0002](decisions.md#d-0002-component)). `idf.py` is not in the devshell yet ([D-0010](decisions.md#d-0010-no-idf-yet)). The sources target ESP-IDF 6.1 and have not been linked here.
