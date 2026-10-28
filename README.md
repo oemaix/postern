@@ -38,6 +38,7 @@ README.md
 CMakeLists.txt         ESP-IDF component entry
 Kconfig                compile-time pins and I2C address
 include/postern.h
+include/postern_regs.h  I2C register file
 src/postern.c
 docs/                  specification
 flake.nix              development shell

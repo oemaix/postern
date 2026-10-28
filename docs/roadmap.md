@@ -12,7 +12,7 @@ This repository: the component entry, the Kconfig pins, the docs, and the devshe
 
 - I2S slave receive at 16-bit stereo, 44.1 kHz or 48 kHz.
 - A2DP source with SBC.
-- I2C peripheral for rate, start, stop, and link status, after [D-0014](decisions.md#d-0014-i2c-map).
+- I2C peripheral implementing the register file ([D-0014](decisions.md#d-0014-i2c-map)). The map is written. The driver is not.
 
 ## Later
 
@@ -21,5 +21,5 @@ This repository: the component entry, the Kconfig pins, the docs, and the devshe
 ## Blockers before phase 1 code
 
 - A consuming project's sdkconfig must set the five GPIOs and the I2C address. The defaults are unset on purpose.
-- The I2C register map ([D-0014](decisions.md#d-0014-i2c-map)).
+- The 7-bit I2C address ([D-0016](decisions.md#d-0016-i2c-address)). The register file is already fixed.
 - `idf.py` is not in this shell ([D-0010](decisions.md#d-0010-no-idf-yet)).

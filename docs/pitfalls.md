@@ -48,13 +48,19 @@ Agents read this file before design or implementation work, and they add to it w
 
 - **Status:** Open
 - **Avoid:** Do not treat GPIO `-1` or I2C address `0x00` as a real wiring, and do not pick a default address in code.
-- **Why:** Those values mean the consuming project has not chosen ([D-0004](decisions.md#d-0004-compile-time-pins)). `postern_load_config` returns false for them. The address itself is [D-0014](decisions.md#d-0014-i2c-map).
+- **Why:** Those values mean the consuming project has not chosen ([D-0004](decisions.md#d-0004-compile-time-pins)). `postern_load_config` returns false for them. The address is [D-0016](decisions.md#d-0016-i2c-address). The register offsets are already fixed ([D-0014](decisions.md#d-0014-i2c-map)).
 
 ### P-0008 pip
 
 - **Status:** Open
 - **Avoid:** Do not `pip install` into the devshell, a user site, or a project `.venv`.
 - **Why:** The interpreter is the flake's `python3` until [D-0015](decisions.md#d-0015-python) closes. A virtualenv with no packages is a second interpreter. ESP-IDF will bring its own Python later, and that tree stays separate.
+
+### P-0009 Partial rate
+
+- **Status:** Open
+- **Avoid:** Do not apply a sample rate unless one write starts at `0x04` and contains all four bytes, and the value is `44100` or `48000`.
+- **Why:** [D-0014](decisions.md#d-0014-i2c-map). A shorter write would store a torn Hertz value. Other rates are refused ([D-0005](decisions.md#d-0005-pcm-format)).
 
 ## Resolved
 

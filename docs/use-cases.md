@@ -15,7 +15,7 @@ The actor is a consuming project, not a listener. Playback behaviour is what tha
 
 - **Phase:** 1
 - **Preconditions:** UC-01, and the peer may switch between 44.1 kHz and 48 kHz.
-- **Main flow:** The peer writes the rate over I2C before the clocks change. Postern uses that rate and does not resample.
+- **Main flow:** The peer writes four rate bytes at offset `0x04`, then start at `0x02`. Postern uses that rate and does not resample.
 
 ## UC-03 Build for another board
 

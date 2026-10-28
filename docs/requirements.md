@@ -11,7 +11,7 @@ Phase 1 requirements are the acceptance bar for that phase. The phase 0 tree onl
 | FR-01 | 0 | `postern_load_config` reports the Kconfig GPIOs and address, and fails when a GPIO is `-1` or the address is `0`. | UC-03 |
 | FR-02 | 1 | Postern receives 16-bit stereo I2S at 44.1 kHz or 48 kHz as a slave. | UC-01 |
 | FR-03 | 1 | Postern transmits that PCM as an A2DP source using SBC, and uses AAC when the session supports it. | UC-01 |
-| FR-04 | 1 | The I2C peripheral accepts the sample rate, start, and stop, and reports whether the Bluetooth link is up. | UC-02 |
+| FR-04 | 1 | The I2C peripheral implements the register file: rate, start, stop, and link status ([D-0014](decisions.md#d-0014-i2c-map)). | UC-02 |
 | FR-05 | 1 | Postern does not resample. A rate other than 44.1 kHz or 48 kHz is refused. | UC-02 |
 
 ## Non-functional

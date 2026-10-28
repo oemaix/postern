@@ -19,8 +19,9 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 | [D-0011](#d-0011-no-ui) | Decided | No UI document |
 | [D-0012](#d-0012-no-remote) | Decided | No network remote; Porta uses a local path |
 | [D-0013](#d-0013-license) | Decided | Apache License 2.0 |
-| [D-0014](#d-0014-i2c-map) | Undecided | Register map and the chosen address |
+| [D-0014](#d-0014-i2c-map) | Decided | Register file, offsets `0x00`–`0x07` |
 | [D-0015](#d-0015-python) | Undecided | The flake's Python is enough until a package is needed |
+| [D-0016](#d-0016-i2c-address) | Undecided | 7-bit I2C address |
 
 ## Decided
 
@@ -115,15 +116,25 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 - **Source:** Same license as Porta, so a consuming project can link the component.
 - **Consequence:** New source files carry the Apache 2.0 header when they are added. This id does not grant a Bluetooth license.
 
-## Undecided
-
 ### D-0014 I2C map
 
-- **Status:** Undecided
-- **Options:** A short register file (rate, start, stop, link status). A single packed control byte.
-- **Recommendation:** A register file, once the first consumer writes it. The address stays `0x00` in Kconfig until that consumer chooses a free address.
-- **Source:** The role is decided ([D-0003](#d-0003-role)). The bytes on the bus are not.
-- **Consequence:** Phase 1 control code waits on this id. Do not invent an address in `src/` ([P-0007](pitfalls.md#p-0007-unset-config)).
+- **Status:** Decided
+- **Choice:** The peer talks to an 8-byte register file. The constants live in `include/postern_regs.h`. The 7-bit address is not part of the map ([D-0016](#d-0016-i2c-address)).
+- **Access:** The first byte of a write is the register offset. Further bytes auto-increment. A read is a write of the offset, a repeated start, then the bytes. Multi-byte values are little-endian. Offsets past the file read as zero.
+
+  | Offset | Name | Access | Value |
+  | --- | --- | --- | --- |
+  | `0x00` | WHOAMI | R | `0x50` |
+  | `0x01` | VERSION | R | `0x01` |
+  | `0x02` | CONTROL | W | `0x01` start, `0x02` stop. Any other byte is ignored. |
+  | `0x03` | STATUS | R | bit 0 link up, bit 1 running, bit 2 rate rejected |
+  | `0x04`–`0x07` | RATE | RW | Hertz, four bytes. `44100` or `48000`. |
+
+- **Rate write:** One transaction starting at `0x04` carries all four bytes. Anything else leaves the accepted rate unchanged and sets the rate-rejected bit. A start while the accepted rate is unset or rejected does not set running.
+- **Source:** Project decision, 2026-10-28, accepting the register-file recommendation. The bits are the ones [D-0003](#d-0003-role) already named: rate, start, stop, and link status.
+- **Consequence:** The peripheral driver is not started. `0x00` remains the unset address in Kconfig ([P-0007](pitfalls.md#p-0007-unset-config), [P-0009](pitfalls.md#p-0009-partial-rate)).
+
+## Undecided
 
 ### D-0015 Python
 
@@ -132,3 +143,11 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 - **Recommendation:** The flake is enough today. The hook and the shell scripts use the standard library and nothing from PyPI. Add `uv` to `flake.nix`, and create a gitignored `.venv` with it, on the day a third-party package is imported. Do not use `pip`. Keep that environment separate from the Python tree ESP-IDF will install for `idf.py`.
 - **Source:** Same choice as Porta, 2026-10-28.
 - **Consequence:** No `.venv`, no `uv`, and no `requirements.txt` until this id closes. [P-0008](pitfalls.md#p-0008-pip).
+
+### D-0016 I2C address
+
+- **Status:** Undecided
+- **Options:** A free 7-bit address chosen after the consuming board is scanned. A fixed address written into Kconfig once that scan exists.
+- **Recommendation:** Leave `POSTERN_I2C_ADDRESS` at `0x00` until the first board lists the addresses already on its bus.
+- **Source:** [D-0014](#d-0014-i2c-map) closed the register file and left the address open.
+- **Consequence:** `postern_load_config` still returns false when the address is `0`. Do not put a guessed address in the sources ([P-0007](pitfalls.md#p-0007-unset-config)).

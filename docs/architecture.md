@@ -13,7 +13,7 @@ flowchart LR
   postern -->|A2DP| phones
 ```
 
-Audio on the cable moves only toward Postern. The peer drives BCLK and WS. Postern's I2S peripheral is a slave. I2C carries the sample rate, start, stop, and link status. The register map is still open ([D-0014](decisions.md#d-0014-i2c-map)).
+Audio on the cable moves only toward Postern. The peer drives BCLK and WS. Postern's I2S peripheral is a slave. I2C uses the register file in `include/postern_regs.h` ([D-0014](decisions.md#d-0014-i2c-map)). The 7-bit address is still unset ([D-0016](decisions.md#d-0016-i2c-address)).
 
 ## Compile-time pins
 
