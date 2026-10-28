@@ -13,22 +13,24 @@ flowchart LR
   postern -->|A2DP| phones
 ```
 
-Audio on the cable moves only toward Postern. The peer drives BCLK and WS. Postern's I2S peripheral is a slave. I2C uses the register file in `include/postern_regs.h` ([D-0014](decisions.md#d-0014-i2c-map)). The 7-bit address is still unset ([D-0016](decisions.md#d-0016-i2c-address)).
+Audio on the cable moves only toward Postern. The peer drives BCLK and WS. Postern's I2S peripheral is a slave. I2C uses the register file in `include/postern_regs.h` ([D-0014](decisions.md#d-0014-i2c-map)). The 7-bit address is `0x1D` ([D-0016](decisions.md#d-0016-i2c-address)).
 
 ## Compile-time pins
 
 These symbols are in `Kconfig`. They name GPIOs on the chip that runs Postern.
 
-| Symbol | Direction | Unset |
+| Symbol | Direction | Stamp Pico default |
 | --- | --- | --- |
-| `POSTERN_I2S_BCLK_GPIO` | in | `-1` |
-| `POSTERN_I2S_WS_GPIO` | in | `-1` |
-| `POSTERN_I2S_DIN_GPIO` | in | `-1` |
-| `POSTERN_I2C_SDA_GPIO` | peripheral | `-1` |
-| `POSTERN_I2C_SCL_GPIO` | peripheral | `-1` |
-| `POSTERN_I2C_ADDRESS` | 7-bit address | `0x00` |
+| `POSTERN_I2S_BCLK_GPIO` | in | `18` |
+| `POSTERN_I2S_WS_GPIO` | in | `19` |
+| `POSTERN_I2S_DIN_GPIO` | in | `36` |
+| `POSTERN_I2C_SDA_GPIO` | peripheral | `21` |
+| `POSTERN_I2C_SCL_GPIO` | peripheral | `22` |
+| `POSTERN_I2C_ADDRESS` | 7-bit address | `0x1D` |
 
-`postern_load_config` copies them into `postern_config_t`. A consuming project sets the values in its sdkconfig or in menuconfig under **Postern**. Changing a wire means building again ([D-0004](decisions.md#d-0004-compile-time-pins)).
+`-1` still means a GPIO is unset, and `0x00` still means the address is unset. GPIO26 is reserved for a later data output and is not in this table. GPIO1 and GPIO3 stay the console ([D-0017](decisions.md#d-0017-reference-pins)).
+
+`postern_load_config` copies them into `postern_config_t`. A consuming project overrides the values in its sdkconfig or in menuconfig under **Postern**. Changing a wire means building again ([D-0004](decisions.md#d-0004-compile-time-pins)).
 
 The peer's GPIO numbers are not these numbers ([P-0001](pitfalls.md#p-0001-peer-pins)).
 

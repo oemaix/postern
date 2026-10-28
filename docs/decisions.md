@@ -21,7 +21,8 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 | [D-0013](#d-0013-license) | Decided | Apache License 2.0 |
 | [D-0014](#d-0014-i2c-map) | Decided | Register file, offsets `0x00`–`0x07` |
 | [D-0015](#d-0015-python) | Undecided | The flake's Python is enough until a package is needed |
-| [D-0016](#d-0016-i2c-address) | Undecided | 7-bit I2C address |
+| [D-0016](#d-0016-i2c-address) | Decided | 7-bit address `0x1D` |
+| [D-0017](#d-0017-reference-pins) | Decided | Stamp Pico GPIO defaults |
 
 ## Decided
 
@@ -132,7 +133,21 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 
 - **Rate write:** One transaction starting at `0x04` carries all four bytes. Anything else leaves the accepted rate unchanged and sets the rate-rejected bit. A start while the accepted rate is unset or rejected does not set running.
 - **Source:** Project decision, 2026-10-28, accepting the register-file recommendation. The bits are the ones [D-0003](#d-0003-role) already named: rate, start, stop, and link status.
-- **Consequence:** The peripheral driver is `src/postern_file.c`, started by `postern_init`. `0x00` remains the unset address in Kconfig, and init fails while it is unset ([P-0007](pitfalls.md#p-0007-unset-config), [P-0009](pitfalls.md#p-0009-partial-rate)).
+- **Consequence:** The peripheral driver is `src/postern_file.c`, started by `postern_init`. `0x00` remains the unset sentinel, and init fails while it is unset. The reference default is `0x1D` ([D-0016](#d-0016-i2c-address), [P-0007](pitfalls.md#p-0007-unset-config), [P-0009](pitfalls.md#p-0009-partial-rate)).
+
+### D-0017 Reference pins
+
+- **Status:** Decided
+- **Choice:** The M5Stamp Pico reference defaults are GPIO21 for SDA, GPIO22 for SCL, GPIO18 for BCLK, GPIO19 for WS, and GPIO36 for DIN. GPIO26 stays free for a later I2S data output and is not a Kconfig symbol. GPIO1 and GPIO3 stay UART0. Another board overrides the five symbols. The I2C address is [D-0016](#d-0016-i2c-address).
+- **Source:** Project decision, 2026-10-29. Those GPIOs are on the Stamp Pico header. GPIO36 is input-only, so it can receive DIN and cannot drive the later output.
+- **Consequence:** Do not hard-code the numbers in `src/`. A peer's GPIO numbers belong to the other chip ([P-0001](pitfalls.md#p-0001-peer-pins), [P-0020](pitfalls.md#p-0020-input-only-din)). `postern_init` fails while a GPIO is `-1` or the address is `0x00`.
+
+### D-0016 I2C address
+
+- **Status:** Decided
+- **Choice:** The 7-bit address is `0x1D`. `POSTERN_I2C_ADDRESS` defaults to that value. `0x00` still means unset, and `postern_load_config` returns false for it.
+- **Source:** Project decision, 2026-10-29. The reference cable's Port A has no other slave. `0x1D` is inside the usable range `0x08`–`0x77`.
+- **Consequence:** Another board overrides the symbol in its sdkconfig. Do not hard-code `0x1D` in `src/` ([P-0007](pitfalls.md#p-0007-unset-config)).
 
 ## Undecided
 
@@ -143,11 +158,3 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 - **Recommendation:** The flake is enough today. The hook and the shell scripts use the standard library and nothing from PyPI. Add `uv` to `flake.nix`, and create a gitignored `.venv` with it, on the day a third-party package is imported. Do not use `pip`. Keep that environment separate from the Python tree ESP-IDF will install for `idf.py`.
 - **Source:** Same choice as Porta, 2026-10-28.
 - **Consequence:** No `.venv`, no `uv`, and no `requirements.txt` until this id closes. [P-0008](pitfalls.md#p-0008-pip).
-
-### D-0016 I2C address
-
-- **Status:** Undecided
-- **Options:** A free 7-bit address chosen after the consuming board is scanned. A fixed address written into Kconfig once that scan exists.
-- **Recommendation:** Leave `POSTERN_I2C_ADDRESS` at `0x00` until the first board lists the addresses already on its bus.
-- **Source:** [D-0014](#d-0014-i2c-map) closed the register file and left the address open.
-- **Consequence:** `postern_load_config` still returns false when the address is `0`. Do not put a guessed address in the sources ([P-0007](pitfalls.md#p-0007-unset-config)).

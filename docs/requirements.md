@@ -23,4 +23,4 @@ Phase 1 requirements are the acceptance bar for that phase. The phase 0 tree onl
 | NFR-03 | A clean Linux host with Nix can enter the devshell from `flake.nix`. |
 | NFR-04 | Decisions and pitfalls keep stable ids. |
 
-FR-01 through FR-05 are in the component, including the AAC path in FR-03. None of this has been run on a board. `postern_init` still fails until the consuming project sets the GPIOs and the I2C address.
+FR-01 through FR-05 are in the component, including the AAC path in FR-03. None of this has been run on a board. The GPIO defaults are the Stamp Pico reference, and the address default is `0x1D`. `postern_init` fails while a GPIO is `-1` or the address is `0x00`.

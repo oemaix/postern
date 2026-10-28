@@ -12,7 +12,7 @@ Agents read this file before design or implementation work, and they add to it w
 
 - **Status:** Open
 - **Avoid:** Do not copy the peer's GPIO numbers into Postern's Kconfig as if they were the same pins.
-- **Why:** The numbers in a product cable table name the peer. Postern's symbols name the chip this component runs on. On Porta those peer numbers are Core2 GPIOs. The Stamp Pico assignment is still chosen by the consuming project.
+- **Why:** The numbers in a product cable table name the peer. Postern's symbols name the chip this component runs on. On Porta the peer numbers are Core2 GPIOs: GPIO32 and GPIO33 for I2C, GPIO14, GPIO13, and GPIO26 for I2S. The Stamp Pico defaults are GPIO21, GPIO22, GPIO18, GPIO19, and GPIO36 ([D-0017](decisions.md#d-0017-reference-pins)). Core2 GPIO26 and Stamp Pico GPIO26 are not the same net.
 
 ### P-0002 AAC first
 
@@ -47,8 +47,8 @@ Agents read this file before design or implementation work, and they add to it w
 ### P-0007 Unset config
 
 - **Status:** Open
-- **Avoid:** Do not treat GPIO `-1` or I2C address `0x00` as a real wiring, and do not pick a default address in code.
-- **Why:** Those values mean the consuming project has not chosen ([D-0004](decisions.md#d-0004-compile-time-pins)). `postern_load_config` returns false for them. The address is [D-0016](decisions.md#d-0016-i2c-address). The register offsets are already fixed ([D-0014](decisions.md#d-0014-i2c-map)).
+- **Avoid:** Do not treat GPIO `-1` or I2C address `0x00` as a real wiring, and do not hard-code the address in `src/`.
+- **Why:** Those values mean unset ([D-0004](decisions.md#d-0004-compile-time-pins)). `postern_load_config` returns false for them. The reference address is `0x1D` in Kconfig ([D-0016](decisions.md#d-0016-i2c-address)). The register offsets are already fixed ([D-0014](decisions.md#d-0014-i2c-map)).
 
 ### P-0008 pip
 
@@ -115,6 +115,12 @@ Agents read this file before design or implementation work, and they add to it w
 - **Status:** Open
 - **Avoid:** Do not delete the encoder task, and do not close its encoder from another task.
 - **Why:** `esp_audio_enc_open` and `i2s_channel_read` cannot be aborted. `vTaskDelete` during those calls can corrupt the heap or the I2S driver. The task checks the stop flag after each call and frees the encoder itself. The I2S channel stays enabled if that task has not left the driver.
+
+### P-0020 Input-only DIN
+
+- **Status:** Open
+- **Avoid:** Do not use GPIO36 as an I2S data output, and do not treat reserved GPIO26 as a pin this component already drives.
+- **Why:** On the ESP32, GPIO36 is input-only. The Stamp Pico reference uses it for DIN ([D-0017](decisions.md#d-0017-reference-pins)). GPIO26 can drive a later headset-microphone output. That path is not in the component, so nothing reads or drives the pin.
 
 ## Resolved
 

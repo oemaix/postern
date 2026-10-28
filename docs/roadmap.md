@@ -18,7 +18,6 @@ This repository: the component entry, the Kconfig pins, the docs, and the devshe
 
 ## Still open
 
-- A consuming project's sdkconfig must set the five GPIOs and the I2C address. The defaults are unset on purpose, and `postern_init` then returns `ESP_ERR_INVALID_STATE`.
-- The 7-bit I2C address ([D-0016](decisions.md#d-0016-i2c-address)).
+- The reference defaults are the Stamp Pico GPIOs and address `0x1D` ([D-0017](decisions.md#d-0017-reference-pins), [D-0016](decisions.md#d-0016-i2c-address)). `postern_init` returns `ESP_ERR_INVALID_STATE` while a GPIO is `-1` or the address is `0x00`.
 - `idf.py` is not in this shell ([D-0010](decisions.md#d-0010-no-idf-yet)). This tree has not been linked with ESP-IDF 6.1.
 - SBC and AAC have not been measured on the Stamp Pico ([P-0002](pitfalls.md#p-0002-aac-first)).

@@ -1,46 +1,54 @@
 menu "Postern"
 
     comment "GPIOs are on the chip that runs this component. -1 means unset."
+    comment "Defaults are the M5Stamp Pico reference wiring. GPIO26 is reserved and is not a symbol. GPIO1 and GPIO3 stay UART0."
     comment "The consuming project enables Classic Bluetooth A2DP, the external codec, AAC, and at least two stream endpoints."
 
     config POSTERN_I2S_BCLK_GPIO
         int "I2S bit clock GPIO"
         range -1 48
-        default -1
+        default 18
         help
             Input. The peer is the I2S master and drives this clock.
+            The Stamp Pico reference uses GPIO18.
 
     config POSTERN_I2S_WS_GPIO
         int "I2S word-select GPIO"
         range -1 48
-        default -1
+        default 19
         help
             Input. Word select, also called LRCK.
+            The Stamp Pico reference uses GPIO19.
 
     config POSTERN_I2S_DIN_GPIO
         int "I2S data-in GPIO"
         range -1 48
-        default -1
+        default 36
         help
             Input. PCM arrives on this pin. This component does not send audio back.
+            The Stamp Pico reference uses GPIO36, which is input-only.
 
     config POSTERN_I2C_SDA_GPIO
         int "I2C SDA GPIO"
         range -1 48
-        default -1
+        default 21
         help
             This chip is the I2C peripheral.
+            The Stamp Pico reference uses GPIO21.
 
     config POSTERN_I2C_SCL_GPIO
         int "I2C SCL GPIO"
         range -1 48
-        default -1
+        default 22
+        help
+            The Stamp Pico reference uses GPIO22.
 
     config POSTERN_I2C_ADDRESS
         hex "I2C peripheral address"
         range 0x00 0x7f
-        default 0x00
+        default 0x1D
         help
-            7-bit address. 0x00 means this build has not chosen one.
+            7-bit address. The Stamp Pico reference uses 0x1D.
+            0x00 means this build has not chosen one.
 
 endmenu
