@@ -16,6 +16,7 @@
 
 #include "postern.h"
 
+#include "postern_encode.h"
 #include "postern_file.h"
 
 #include <string.h>
@@ -39,11 +40,6 @@
 
 static const char *TAG = "postern";
 
-/* ESP-IDF 6.1 still exports this for the built-in SBC encoder, and the
-   a2dp_source example calls it. The public header on that line no longer
-   carries the prototype. A matching declaration from the header is compatible. */
-extern esp_err_t esp_a2d_source_register_data_callback(int32_t (*callback)(uint8_t *buf, int32_t len));
-
 static const char *POSTERN_DEVICE_NAME = "Postern";
 
 enum {
@@ -53,6 +49,13 @@ enum {
     POSTERN_EVT_FOUND,
     POSTERN_EVT_DISCOVERY_STOPPED,
     POSTERN_EVT_PROFILE,
+    POSTERN_EVT_CAPS,
+    POSTERN_EVT_ENCODE,
+};
+
+enum {
+    POSTERN_PREF_AAC = 1,
+    POSTERN_PREF_SBC,
 };
 
 enum {
@@ -70,6 +73,7 @@ typedef struct {
     esp_a2d_cb_param_t a2d;
     esp_bd_addr_t bda;
     esp_a2d_init_state_t profile;
+    esp_err_t encode_err;
 } postern_evt_t;
 
 static postern_config_t s_cfg;
@@ -90,14 +94,26 @@ static bool s_connected;
 static bool s_connecting;
 static bool s_discovering;
 static bool s_chosen;
-static bool s_caps_valid;
+static bool s_sbc_valid;
+static bool s_aac_valid;
+static bool s_aac_sep_ok;
+static bool s_sbc_sep_ok;
+static bool s_aac_give_up;
 static bool s_start_pending;
+static bool s_start_acked;
+static bool s_mcc_valid;
 static esp_bd_addr_t s_peer;
 static esp_a2d_conn_hdl_t s_conn;
-static esp_a2d_cie_sbc_t s_caps;
+static uint16_t s_audio_mtu;
+static esp_a2d_cie_sbc_t s_sbc_caps;
+static esp_a2d_cie_m24_t s_aac_caps;
+static esp_a2d_mcc_t s_mcc;
 static uint32_t s_stream_hz;
 static int s_media;
+static int s_pref_kind;
 static int s_profile_tries;
+static int s_sep_wait;
+static bool s_sep_gate;
 
 bool postern_load_config(postern_config_t *config)
 {
@@ -168,6 +184,10 @@ static bool postern_take_rate(uint32_t *hz)
 
 static void postern_pcm_close(void)
 {
+    if (!postern_encode_stop()) {
+        postern_set_running(false);
+        return;
+    }
     s_pcm_open = false;
     if (s_i2s_on && s_rx != NULL) {
         i2s_channel_disable(s_rx);
@@ -225,28 +245,7 @@ static esp_err_t postern_pcm_open(uint32_t hz)
         s_i2s_on = true;
     }
     s_pcm_open = true;
-    postern_set_running(true);
     return ESP_OK;
-}
-
-static int32_t postern_data_cb(uint8_t *data, int32_t len)
-{
-    size_t got = 0;
-
-    /* len -1 asks the source to flush. Nothing is copied. */
-    if (data == NULL || len <= 0) {
-        return 0;
-    }
-    if (!s_pcm_open || s_rx == NULL) {
-        memset(data, 0, (size_t)len);
-        return len;
-    }
-    if (i2s_channel_read(s_rx, data, (size_t)len, &got, 0) != ESP_OK || got < (size_t)len) {
-        if (got < (size_t)len) {
-            memset(data + got, 0, (size_t)len - got);
-        }
-    }
-    return len;
 }
 
 static bool postern_on_receive(i2c_slave_dev_handle_t i2c_slave, const i2c_slave_rx_done_event_data_t *edata, void *arg)
@@ -357,6 +356,8 @@ static void postern_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *p
     }
 }
 
+static void postern_store_mcc(const esp_a2d_mcc_t *mcc);
+
 static void postern_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param)
 {
     postern_evt_t evt;
@@ -364,6 +365,17 @@ static void postern_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param)
     memset(&evt, 0, sizeof(evt));
     evt.kind = POSTERN_EVT_A2D;
     evt.a2d_event = event;
+    if (event == ESP_A2D_REPORT_SNK_ALL_CODEC_CAPS_EVT && param != NULL
+        && param->a2d_report_snk_all_codec_caps_stat.sep_mcc != NULL) {
+        uint8_t n = param->a2d_report_snk_all_codec_caps_stat.sep_num;
+        esp_a2d_sep_mcc_t *seps = param->a2d_report_snk_all_codec_caps_stat.sep_mcc;
+        for (uint8_t i = 0; i < n; i++) {
+            postern_store_mcc(&seps[i].mcc);
+        }
+        evt.kind = POSTERN_EVT_CAPS;
+        postern_send(&evt);
+        return;
+    }
     if (param != NULL) {
         evt.a2d = *param;
     }
@@ -484,9 +496,168 @@ static uint8_t postern_sbc_pick(uint8_t caps, uint8_t first, uint8_t second, uin
     return 0;
 }
 
-static void postern_try_stream(void)
+static void postern_store_mcc(const esp_a2d_mcc_t *mcc)
 {
-    esp_a2d_mcc_t pref;
+    portENTER_CRITICAL(&s_mux);
+    if (mcc->type == ESP_A2D_MCT_SBC) {
+        s_sbc_caps = mcc->cie.sbc_info;
+        s_sbc_valid = true;
+    } else if (mcc->type == ESP_A2D_MCT_M24) {
+        s_aac_caps = mcc->cie.m24_info;
+        s_aac_valid = true;
+    }
+    portEXIT_CRITICAL(&s_mux);
+}
+
+static bool postern_load_aac(esp_a2d_cie_m24_t *out)
+{
+    bool ok;
+    portENTER_CRITICAL(&s_mux);
+    ok = s_aac_valid;
+    if (ok) {
+        *out = s_aac_caps;
+    }
+    portEXIT_CRITICAL(&s_mux);
+    return ok;
+}
+
+static bool postern_load_sbc(esp_a2d_cie_sbc_t *out)
+{
+    bool ok;
+    portENTER_CRITICAL(&s_mux);
+    ok = s_sbc_valid;
+    if (ok) {
+        *out = s_sbc_caps;
+    }
+    portEXIT_CRITICAL(&s_mux);
+    return ok;
+}
+
+static void postern_put_aac_bitrate(esp_a2d_cie_m24_t *m24)
+{
+    m24->br1 = (POSTERN_AAC_BITRATE_BPS >> 16) & ESP_A2D_M24_CIE_BR1_MSK;
+    m24->br2 = (POSTERN_AAC_BITRATE_BPS >> 8) & ESP_A2D_M24_CIE_BR2_MSK;
+    m24->br3 = POSTERN_AAC_BITRATE_BPS & ESP_A2D_M24_CIE_BR3_MSK;
+}
+
+static void postern_register_seps(void)
+{
+    esp_a2d_mcc_t aac;
+    esp_a2d_mcc_t sbc;
+
+    memset(&aac, 0, sizeof(aac));
+    aac.type = ESP_A2D_MCT_M24;
+    aac.cie.m24_info.drc = ESP_A2D_M24_CIE_DRC_NS;
+    aac.cie.m24_info.obj_type = ESP_A2D_M24_CIE_OBJ_TYPE_2_AAC_LC | ESP_A2D_M24_CIE_OBJ_TYPE_4_AAC_LC;
+    aac.cie.m24_info.samp_freq1 = ESP_A2D_M24_CIE_SF1_44K;
+    aac.cie.m24_info.samp_freq2 = ESP_A2D_M24_CIE_SF2_48K;
+    aac.cie.m24_info.ch = ESP_A2D_M24_CIE_CH_2;
+    aac.cie.m24_info.vbr = ESP_A2D_M24_CIE_VBR_NS;
+    postern_put_aac_bitrate(&aac.cie.m24_info);
+    s_sep_gate = true;
+    s_sep_wait = 0;
+    s_aac_sep_ok = true;
+    s_sbc_sep_ok = true;
+    if (esp_a2d_source_register_stream_endpoint(0, &aac) != ESP_OK) {
+        s_aac_sep_ok = false;
+        ESP_LOGW(TAG, "AAC endpoint was not queued");
+    } else {
+        s_sep_wait++;
+    }
+
+    memset(&sbc, 0, sizeof(sbc));
+    sbc.type = ESP_A2D_MCT_SBC;
+    sbc.cie.sbc_info.samp_freq = ESP_A2D_SBC_CIE_SF_44K | ESP_A2D_SBC_CIE_SF_48K;
+    sbc.cie.sbc_info.ch_mode = ESP_A2D_SBC_CIE_CH_MODE_JOINT_STEREO | ESP_A2D_SBC_CIE_CH_MODE_STEREO
+        | ESP_A2D_SBC_CIE_CH_MODE_DUAL_CHANNEL;
+    sbc.cie.sbc_info.block_len = ESP_A2D_SBC_CIE_BLOCK_LEN_16 | ESP_A2D_SBC_CIE_BLOCK_LEN_12
+        | ESP_A2D_SBC_CIE_BLOCK_LEN_8 | ESP_A2D_SBC_CIE_BLOCK_LEN_4;
+    sbc.cie.sbc_info.num_subbands = ESP_A2D_SBC_CIE_NUM_SUBBANDS_8 | ESP_A2D_SBC_CIE_NUM_SUBBANDS_4;
+    sbc.cie.sbc_info.alloc_mthd = ESP_A2D_SBC_CIE_ALLOC_MTHD_LOUDNESS | ESP_A2D_SBC_CIE_ALLOC_MTHD_SNR;
+    sbc.cie.sbc_info.min_bitpool = 2;
+    sbc.cie.sbc_info.max_bitpool = 53;
+    if (esp_a2d_source_register_stream_endpoint(1, &sbc) != ESP_OK) {
+        s_sbc_sep_ok = false;
+        ESP_LOGW(TAG, "SBC endpoint was not queued");
+    } else {
+        s_sep_wait++;
+    }
+    if (s_sep_wait == 0) {
+        s_sep_gate = false;
+        postern_page_or_discover();
+    }
+}
+
+static void postern_sep_arrived(void)
+{
+    if (!s_sep_gate) {
+        return;
+    }
+    if (s_sep_wait > 0) {
+        s_sep_wait--;
+    }
+    if (s_sep_wait == 0) {
+        s_sep_gate = false;
+        postern_page_or_discover();
+    }
+}
+
+static void postern_try_stream(void);
+
+static void postern_pref_refused(void)
+{
+    s_media = POSTERN_MEDIA_IDLE;
+    if (s_pref_kind == POSTERN_PREF_AAC) {
+        s_aac_give_up = true;
+        postern_try_stream();
+        return;
+    }
+    s_start_pending = false;
+}
+
+static bool postern_fill_aac(esp_a2d_mcc_t *pref, uint32_t hz)
+{
+    esp_a2d_cie_m24_t caps;
+    uint8_t obj;
+
+    if (!s_aac_sep_ok || s_aac_give_up || !postern_load_aac(&caps)) {
+        return false;
+    }
+    if ((caps.ch & ESP_A2D_M24_CIE_CH_2) == 0) {
+        return false;
+    }
+    if ((caps.obj_type & ESP_A2D_M24_CIE_OBJ_TYPE_2_AAC_LC) != 0) {
+        obj = ESP_A2D_M24_CIE_OBJ_TYPE_2_AAC_LC;
+    } else if ((caps.obj_type & ESP_A2D_M24_CIE_OBJ_TYPE_4_AAC_LC) != 0) {
+        obj = ESP_A2D_M24_CIE_OBJ_TYPE_4_AAC_LC;
+    } else {
+        return false;
+    }
+
+    memset(pref, 0, sizeof(*pref));
+    pref->type = ESP_A2D_MCT_M24;
+    pref->cie.m24_info.drc = ESP_A2D_M24_CIE_DRC_NS;
+    pref->cie.m24_info.obj_type = obj;
+    pref->cie.m24_info.ch = ESP_A2D_M24_CIE_CH_2;
+    pref->cie.m24_info.vbr = ESP_A2D_M24_CIE_VBR_NS;
+    postern_put_aac_bitrate(&pref->cie.m24_info);
+    if (hz == POSTERN_RATE_HZ_44K) {
+        if ((caps.samp_freq1 & ESP_A2D_M24_CIE_SF1_44K) == 0) {
+            return false;
+        }
+        pref->cie.m24_info.samp_freq1 = ESP_A2D_M24_CIE_SF1_44K;
+        return true;
+    }
+    if (hz == POSTERN_RATE_HZ_48K && (caps.samp_freq2 & ESP_A2D_M24_CIE_SF2_48K) != 0) {
+        pref->cie.m24_info.samp_freq2 = ESP_A2D_M24_CIE_SF2_48K;
+        return true;
+    }
+    return false;
+}
+
+static bool postern_fill_sbc(esp_a2d_mcc_t *pref, uint32_t hz)
+{
+    esp_a2d_cie_sbc_t caps;
     uint8_t freq;
     uint8_t channel;
     uint8_t blocks;
@@ -494,51 +665,72 @@ static void postern_try_stream(void)
     uint8_t alloc;
     uint8_t min_pool;
     uint8_t max_pool;
-    uint32_t hz = 0;
 
-    if (!s_start_pending || !s_connected || !s_caps_valid || s_media != POSTERN_MEDIA_IDLE) {
+    if (!s_sbc_sep_ok || !postern_load_sbc(&caps)) {
+        return false;
+    }
+    freq = postern_sbc_freq(hz);
+    channel = postern_sbc_channel(&caps);
+    blocks = postern_sbc_pick(caps.block_len, ESP_A2D_SBC_CIE_BLOCK_LEN_16, ESP_A2D_SBC_CIE_BLOCK_LEN_12,
+        ESP_A2D_SBC_CIE_BLOCK_LEN_8, ESP_A2D_SBC_CIE_BLOCK_LEN_4);
+    subbands = postern_sbc_pick(caps.num_subbands, ESP_A2D_SBC_CIE_NUM_SUBBANDS_8, ESP_A2D_SBC_CIE_NUM_SUBBANDS_4, 0, 0);
+    alloc = postern_sbc_pick(caps.alloc_mthd, ESP_A2D_SBC_CIE_ALLOC_MTHD_LOUDNESS, ESP_A2D_SBC_CIE_ALLOC_MTHD_SNR, 0, 0);
+    if (freq == 0 || (caps.samp_freq & freq) == 0 || channel == 0 || blocks == 0 || subbands == 0 || alloc == 0) {
+        return false;
+    }
+    min_pool = caps.min_bitpool < 2 ? 2 : caps.min_bitpool;
+    max_pool = caps.max_bitpool > 53 ? 53 : caps.max_bitpool;
+    if (min_pool > max_pool) {
+        return false;
+    }
+
+    memset(pref, 0, sizeof(*pref));
+    pref->type = ESP_A2D_MCT_SBC;
+    pref->cie.sbc_info.samp_freq = freq;
+    pref->cie.sbc_info.ch_mode = channel;
+    pref->cie.sbc_info.block_len = blocks;
+    pref->cie.sbc_info.num_subbands = subbands;
+    pref->cie.sbc_info.alloc_mthd = alloc;
+    pref->cie.sbc_info.min_bitpool = min_pool;
+    pref->cie.sbc_info.max_bitpool = max_pool;
+    return true;
+}
+
+static void postern_try_stream(void)
+{
+    esp_a2d_mcc_t pref;
+    uint32_t hz = 0;
+    int kind = 0;
+
+    if (!s_start_pending || !s_connected || s_media != POSTERN_MEDIA_IDLE) {
+        return;
+    }
+    if (!s_sbc_valid && !s_aac_valid) {
         return;
     }
     if (!postern_take_rate(&hz)) {
         return;
     }
-    freq = postern_sbc_freq(hz);
-    channel = postern_sbc_channel(&s_caps);
-    blocks = postern_sbc_pick(s_caps.block_len, ESP_A2D_SBC_CIE_BLOCK_LEN_16, ESP_A2D_SBC_CIE_BLOCK_LEN_12,
-        ESP_A2D_SBC_CIE_BLOCK_LEN_8, ESP_A2D_SBC_CIE_BLOCK_LEN_4);
-    subbands = postern_sbc_pick(s_caps.num_subbands, ESP_A2D_SBC_CIE_NUM_SUBBANDS_8, ESP_A2D_SBC_CIE_NUM_SUBBANDS_4, 0, 0);
-    alloc = postern_sbc_pick(s_caps.alloc_mthd, ESP_A2D_SBC_CIE_ALLOC_MTHD_LOUDNESS, ESP_A2D_SBC_CIE_ALLOC_MTHD_SNR, 0, 0);
-    if (freq == 0 || (s_caps.samp_freq & freq) == 0 || channel == 0 || blocks == 0 || subbands == 0 || alloc == 0) {
-        ESP_LOGW(TAG, "sink cannot take %u Hz stereo SBC", (unsigned)hz);
+    if (postern_fill_aac(&pref, hz)) {
+        kind = POSTERN_PREF_AAC;
+    } else if (postern_fill_sbc(&pref, hz)) {
+        kind = POSTERN_PREF_SBC;
+    } else if (!s_sbc_valid && s_sbc_sep_ok) {
+        return;
+    } else {
+        ESP_LOGW(TAG, "sink cannot take %u Hz stereo", (unsigned)hz);
         s_start_pending = false;
         return;
     }
-
-    min_pool = s_caps.min_bitpool < 2 ? 2 : s_caps.min_bitpool;
-    max_pool = s_caps.max_bitpool > 53 ? 53 : s_caps.max_bitpool;
-    if (min_pool > max_pool) {
-        ESP_LOGW(TAG, "sink SBC bitpool is empty");
-        s_start_pending = false;
-        return;
-    }
-
-    memset(&pref, 0, sizeof(pref));
-    pref.type = ESP_A2D_MCT_SBC;
-    pref.cie.sbc_info.samp_freq = freq;
-    pref.cie.sbc_info.ch_mode = channel;
-    pref.cie.sbc_info.block_len = blocks;
-    pref.cie.sbc_info.num_subbands = subbands;
-    pref.cie.sbc_info.alloc_mthd = alloc;
-    pref.cie.sbc_info.min_bitpool = min_pool;
-    pref.cie.sbc_info.max_bitpool = max_pool;
 
     s_stream_hz = hz;
+    s_mcc_valid = false;
+    s_start_acked = false;
+    s_pref_kind = kind;
     s_media = POSTERN_MEDIA_PREF;
     if (esp_a2d_source_set_pref_mcc(s_conn, &pref) != ESP_OK) {
-        s_media = POSTERN_MEDIA_IDLE;
-        ESP_LOGW(TAG, "set preferred SBC failed");
-        s_start_pending = false;
-        return;
+        ESP_LOGW(TAG, "set preferred codec failed");
+        postern_pref_refused();
     }
 }
 
@@ -551,6 +743,7 @@ static void postern_become_idle(void)
 static void postern_stop_stream(void)
 {
     s_start_pending = false;
+    s_start_acked = false;
     postern_pcm_close();
     if (s_media == POSTERN_MEDIA_STARTED || s_media == POSTERN_MEDIA_STARTING) {
         esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_SUSPEND);
@@ -558,6 +751,93 @@ static void postern_stop_stream(void)
         return;
     }
     s_media = POSTERN_MEDIA_IDLE;
+}
+
+static bool postern_mcc_matches(uint32_t hz)
+{
+    if (s_mcc.type == ESP_A2D_MCT_SBC) {
+        uint8_t freq = postern_sbc_freq(hz);
+        return freq != 0 && (s_mcc.cie.sbc_info.samp_freq & freq) != 0 && postern_sbc_channel(&s_mcc.cie.sbc_info) != 0;
+    }
+    if (s_mcc.type == ESP_A2D_MCT_M24 && (s_mcc.cie.m24_info.ch & ESP_A2D_M24_CIE_CH_2) != 0) {
+        if (hz == POSTERN_RATE_HZ_44K) {
+            return (s_mcc.cie.m24_info.samp_freq1 & ESP_A2D_M24_CIE_SF1_44K) != 0;
+        }
+        if (hz == POSTERN_RATE_HZ_48K) {
+            return (s_mcc.cie.m24_info.samp_freq2 & ESP_A2D_M24_CIE_SF2_48K) != 0;
+        }
+    }
+    return false;
+}
+
+static void postern_codec_failed(void)
+{
+    bool aac = s_pref_kind == POSTERN_PREF_AAC || (s_mcc_valid && s_mcc.type == ESP_A2D_MCT_M24);
+
+    s_mcc_valid = false;
+    s_start_acked = false;
+    if (aac) {
+        s_aac_give_up = true;
+        s_start_pending = true;
+    } else {
+        s_start_pending = false;
+    }
+    esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_SUSPEND);
+    s_media = POSTERN_MEDIA_STOPPING;
+}
+
+static void postern_encode_note(esp_err_t err)
+{
+    postern_evt_t evt;
+
+    memset(&evt, 0, sizeof(evt));
+    evt.kind = POSTERN_EVT_ENCODE;
+    evt.encode_err = err;
+    postern_send(&evt);
+}
+
+static void postern_on_encode(esp_err_t err)
+{
+    if (s_media != POSTERN_MEDIA_STARTING && s_media != POSTERN_MEDIA_STARTED) {
+        return;
+    }
+    if (err != ESP_OK) {
+        if (s_media == POSTERN_MEDIA_STARTED || s_pcm_open) {
+            postern_pcm_close();
+        }
+        postern_codec_failed();
+        return;
+    }
+    if (s_media != POSTERN_MEDIA_STARTING) {
+        return;
+    }
+    postern_set_running(true);
+    s_media = POSTERN_MEDIA_STARTED;
+    s_start_pending = false;
+    s_start_acked = false;
+}
+
+static void postern_launch_media(void)
+{
+    if (s_media != POSTERN_MEDIA_STARTING || !s_start_acked || !s_mcc_valid) {
+        return;
+    }
+    if (!postern_mcc_matches(s_stream_hz)) {
+        ESP_LOGW(TAG, "negotiated codec is not %u Hz stereo", (unsigned)s_stream_hz);
+        postern_codec_failed();
+        return;
+    }
+    if (postern_pcm_open(s_stream_hz) != ESP_OK) {
+        ESP_LOGE(TAG, "I2S slave did not start");
+        postern_codec_failed();
+        return;
+    }
+    if (postern_encode_start(s_rx, s_conn, s_audio_mtu, &s_mcc, s_stream_hz, postern_encode_note) != ESP_OK) {
+        ESP_LOGE(TAG, "encoder did not start");
+        postern_pcm_close();
+        postern_codec_failed();
+        return;
+    }
 }
 
 static void postern_on_media_ack(const esp_a2d_cb_param_t *a2d)
@@ -576,21 +856,14 @@ static void postern_on_media_ack(const esp_a2d_cb_param_t *a2d)
             esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_START);
             s_media = POSTERN_MEDIA_STARTING;
         } else if (a2d->media_ctrl_stat.cmd == ESP_A2D_MEDIA_CTRL_CHECK_SRC_RDY) {
-            s_media = POSTERN_MEDIA_IDLE;
-            s_start_pending = false;
+            ESP_LOGW(TAG, "source ready check failed");
+            postern_pref_refused();
         }
         break;
     case POSTERN_MEDIA_STARTING:
         if (a2d->media_ctrl_stat.cmd == ESP_A2D_MEDIA_CTRL_START && ok) {
-            if (postern_pcm_open(s_stream_hz) == ESP_OK) {
-                s_media = POSTERN_MEDIA_STARTED;
-                s_start_pending = false;
-            } else {
-                ESP_LOGE(TAG, "I2S slave did not start");
-                esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_SUSPEND);
-                s_media = POSTERN_MEDIA_STOPPING;
-                s_start_pending = false;
-            }
+            s_start_acked = true;
+            postern_launch_media();
         } else if (a2d->media_ctrl_stat.cmd == ESP_A2D_MEDIA_CTRL_START) {
             s_media = POSTERN_MEDIA_IDLE;
             s_start_pending = false;
@@ -613,9 +886,17 @@ static void postern_drop_link(void)
     s_connected = false;
     s_connecting = false;
     s_chosen = false;
-    s_caps_valid = false;
+    portENTER_CRITICAL(&s_mux);
+    s_sbc_valid = false;
+    s_aac_valid = false;
+    portEXIT_CRITICAL(&s_mux);
+    s_aac_give_up = false;
     s_start_pending = false;
+    s_start_acked = false;
+    s_mcc_valid = false;
+    s_audio_mtu = 0;
     s_media = POSTERN_MEDIA_IDLE;
+    s_pref_kind = 0;
     postern_pcm_close();
     postern_set_link(false);
     if (was_discovering) {
@@ -635,6 +916,7 @@ static void postern_on_a2d(const postern_evt_t *evt)
             s_connected = true;
             s_connecting = false;
             s_conn = a2d->conn_stat.conn_hdl;
+            s_audio_mtu = a2d->conn_stat.audio_mtu;
             memcpy(s_peer, a2d->conn_stat.remote_bda, sizeof(s_peer));
             postern_set_link(true);
             postern_save_peer(s_peer);
@@ -648,12 +930,26 @@ static void postern_on_a2d(const postern_evt_t *evt)
         }
         break;
     case ESP_A2D_REPORT_SNK_CODEC_CAPS_EVT:
-        if (a2d->a2d_report_snk_codec_caps_stat.mcc.type == ESP_A2D_MCT_SBC) {
-            s_caps = a2d->a2d_report_snk_codec_caps_stat.mcc.cie.sbc_info;
-            s_caps_valid = true;
-            s_conn = a2d->a2d_report_snk_codec_caps_stat.conn_hdl;
-            postern_try_stream();
+        postern_store_mcc(&a2d->a2d_report_snk_codec_caps_stat.mcc);
+        s_conn = a2d->a2d_report_snk_codec_caps_stat.conn_hdl;
+        postern_try_stream();
+        break;
+    case ESP_A2D_AUDIO_CFG_EVT:
+        s_mcc = a2d->audio_cfg.mcc;
+        s_mcc_valid = true;
+        ESP_LOGI(TAG, "negotiated codec %u", (unsigned)s_mcc.type);
+        postern_launch_media();
+        break;
+    case ESP_A2D_SEP_REG_STATE_EVT:
+        if (a2d->a2d_sep_reg_stat.reg_state != ESP_A2D_SEP_REG_SUCCESS) {
+            ESP_LOGW(TAG, "SEP %u failed", (unsigned)a2d->a2d_sep_reg_stat.seid);
+            if (a2d->a2d_sep_reg_stat.seid == 0) {
+                s_aac_sep_ok = false;
+            } else if (a2d->a2d_sep_reg_stat.seid == 1) {
+                s_sbc_sep_ok = false;
+            }
         }
+        postern_sep_arrived();
         break;
     case ESP_A2D_SRC_SET_PREF_MCC_EVT:
         if (s_media != POSTERN_MEDIA_PREF) {
@@ -663,9 +959,8 @@ static void postern_on_a2d(const postern_evt_t *evt)
             esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_CHECK_SRC_RDY);
             s_media = POSTERN_MEDIA_CHECK;
         } else {
-            ESP_LOGW(TAG, "preferred SBC was refused");
-            s_media = POSTERN_MEDIA_IDLE;
-            s_start_pending = false;
+            ESP_LOGW(TAG, "preferred codec was refused");
+            postern_pref_refused();
         }
         break;
     case ESP_A2D_MEDIA_CTRL_ACK_EVT:
@@ -688,8 +983,10 @@ static void postern_on_evt(const postern_evt_t *evt)
     case POSTERN_EVT_PROFILE:
         if (evt->profile == ESP_A2D_INIT_SUCCESS) {
             s_profile_tries = 0;
+            s_aac_sep_ok = true;
+            s_sbc_sep_ok = true;
             ESP_LOGI(TAG, "A2DP source ready");
-            postern_page_or_discover();
+            postern_register_seps();
         } else if (s_profile_tries < 2) {
             s_profile_tries++;
             ESP_LOGW(TAG, "A2DP source init failed, retry %d", s_profile_tries);
@@ -718,6 +1015,9 @@ static void postern_on_evt(const postern_evt_t *evt)
             postern_begin_discovery();
         }
         break;
+    case POSTERN_EVT_CAPS:
+        postern_try_stream();
+        break;
     case POSTERN_EVT_START:
         if (s_media == POSTERN_MEDIA_STARTED) {
             break;
@@ -729,6 +1029,9 @@ static void postern_on_evt(const postern_evt_t *evt)
         break;
     case POSTERN_EVT_STOP:
         postern_stop_stream();
+        break;
+    case POSTERN_EVT_ENCODE:
+        postern_on_encode(evt->encode_err);
         break;
     case POSTERN_EVT_A2D:
         postern_on_a2d(evt);
@@ -801,6 +1104,7 @@ static esp_err_t postern_start_nvs(void)
 
 static void postern_shutdown(bool bluedroid, bool controller)
 {
+    postern_pcm_close();
     if (s_i2c != NULL) {
         i2c_del_slave_device(s_i2c);
         s_i2c = NULL;
@@ -882,10 +1186,6 @@ static esp_err_t postern_start_bt(bool *controller_enabled, bool *bluedroid_enab
     if (err != ESP_OK) {
         return err;
     }
-    err = esp_a2d_source_register_data_callback(postern_data_cb);
-    if (err != ESP_OK) {
-        return err;
-    }
 
     addr = esp_bt_dev_get_address();
     if (addr != NULL) {
@@ -914,10 +1214,20 @@ esp_err_t postern_init(void)
     s_connecting = false;
     s_discovering = false;
     s_chosen = false;
-    s_caps_valid = false;
+    s_sbc_valid = false;
+    s_aac_valid = false;
+    s_aac_sep_ok = true;
+    s_sbc_sep_ok = true;
+    s_aac_give_up = false;
     s_start_pending = false;
+    s_start_acked = false;
+    s_mcc_valid = false;
+    s_audio_mtu = 0;
     s_media = POSTERN_MEDIA_IDLE;
+    s_pref_kind = 0;
     s_profile_tries = 0;
+    s_sep_wait = 0;
+    s_sep_gate = false;
     s_pcm_open = false;
     s_i2s_ready = false;
     s_i2s_on = false;

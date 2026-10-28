@@ -1,7 +1,7 @@
 menu "Postern"
 
     comment "GPIOs are on the chip that runs this component. -1 means unset."
-    comment "The consuming project enables Classic Bluetooth A2DP and leaves the external codec off."
+    comment "The consuming project enables Classic Bluetooth A2DP, the external codec, AAC, and at least two stream endpoints."
 
     config POSTERN_I2S_BCLK_GPIO
         int "I2S bit clock GPIO"

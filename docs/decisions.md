@@ -65,7 +65,7 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 - **Status:** Decided
 - **Choice:** SBC is the A2DP codec that must work. AAC is the goal after SBC is stable on the target.
 - **Source:** The Porta transmitter contract, 2026-10-28.
-- **Consequence:** [P-0002](pitfalls.md#p-0002-aac-first).
+- **Consequence:** The component registers an AAC-LC endpoint and an SBC endpoint and encodes both. [P-0002](pitfalls.md#p-0002-aac-first) still stands: the path has not been measured on the target, so AAC is not treated as done.
 
 ### D-0007 Framework
 
