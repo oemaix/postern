@@ -20,6 +20,7 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 | [D-0012](#d-0012-no-remote) | Decided | No network remote; Porta uses a local path |
 | [D-0013](#d-0013-license) | Decided | Apache License 2.0 |
 | [D-0014](#d-0014-i2c-map) | Undecided | Register map and the chosen address |
+| [D-0015](#d-0015-python) | Undecided | The flake's Python is enough until a package is needed |
 
 ## Decided
 
@@ -123,3 +124,11 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 - **Recommendation:** A register file, once the first consumer writes it. The address stays `0x00` in Kconfig until that consumer chooses a free address.
 - **Source:** The role is decided ([D-0003](#d-0003-role)). The bytes on the bus are not.
 - **Consequence:** Phase 1 control code waits on this id. Do not invent an address in `src/` ([P-0007](pitfalls.md#p-0007-unset-config)).
+
+### D-0015 Python
+
+- **Status:** Undecided
+- **Options:** The flake's `python3` only. `uv` plus a gitignored `.venv` as soon as the shell exists. `pip` into that environment.
+- **Recommendation:** The flake is enough today. The hook and the shell scripts use the standard library and nothing from PyPI. Add `uv` to `flake.nix`, and create a gitignored `.venv` with it, on the day a third-party package is imported. Do not use `pip`. Keep that environment separate from the Python tree ESP-IDF will install for `idf.py`.
+- **Source:** Same choice as Porta, 2026-10-28.
+- **Consequence:** No `.venv`, no `uv`, and no `requirements.txt` until this id closes. [P-0008](pitfalls.md#p-0008-pip).

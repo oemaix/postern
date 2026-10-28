@@ -28,6 +28,7 @@
               zsh
               git
               python3
+              uv
               curl
               cacert
               coreutils

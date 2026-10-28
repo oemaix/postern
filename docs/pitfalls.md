@@ -50,6 +50,12 @@ Agents read this file before design or implementation work, and they add to it w
 - **Avoid:** Do not treat GPIO `-1` or I2C address `0x00` as a real wiring, and do not pick a default address in code.
 - **Why:** Those values mean the consuming project has not chosen ([D-0004](decisions.md#d-0004-compile-time-pins)). `postern_load_config` returns false for them. The address itself is [D-0014](decisions.md#d-0014-i2c-map).
 
+### P-0008 pip
+
+- **Status:** Open
+- **Avoid:** Do not `pip install` into the devshell, a user site, or a project `.venv`.
+- **Why:** The interpreter is the flake's `python3` until [D-0015](decisions.md#d-0015-python) closes. A virtualenv with no packages is a second interpreter. ESP-IDF will bring its own Python later, and that tree stays separate.
+
 ## Resolved
 
 None yet.

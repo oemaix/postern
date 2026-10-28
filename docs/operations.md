@@ -8,7 +8,7 @@ Status: baseline · 2026-10-28
 nix develop
 ```
 
-The shell provides git, Python 3, CMake, Ninja, and esptool. It does not provide `idf.py` or an Xtensa toolchain ([D-0010](decisions.md#d-0010-no-idf-yet)). Do not add an ESP-IDF flake that is pinned to an older nixpkgs ([P-0006](pitfalls.md#p-0006-idf-flake)).
+The shell provides git, Python 3, CMake, Ninja, and esptool. It does not provide `idf.py` or an Xtensa toolchain ([D-0010](decisions.md#d-0010-no-idf-yet)). Python is the flake's `python3` and the standard library. There is no `.venv` yet ([D-0015](decisions.md#d-0015-python), [P-0008](pitfalls.md#p-0008-pip)). Do not add an ESP-IDF flake that is pinned to an older nixpkgs ([P-0006](pitfalls.md#p-0006-idf-flake)).
 
 Nix only sees files Git knows about. Stage `flake.nix` before `nix flake lock` ([P-0005](pitfalls.md#p-0005-untracked-flake)).
 
