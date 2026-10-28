@@ -1,0 +1,14 @@
+{
+  "terminal.integrated.defaultProfile.linux": "Nix Develop",
+  "terminal.integrated.defaultProfile.osx": "Nix Develop",
+  "terminal.integrated.profiles.linux": {
+    "Nix Develop": {
+      "path": "${workspaceFolder}/.vscode/nix-develop-terminal.sh"
+    }
+  },
+  "terminal.integrated.profiles.osx": {
+    "Nix Develop": {
+      "path": "${workspaceFolder}/.vscode/nix-develop-terminal.sh"
+    }
+  }
+}

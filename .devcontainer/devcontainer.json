@@ -1,0 +1,21 @@
+{
+  "name": "postern",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "vscode",
+  "postCreateCommand": "nix develop --command true",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "jnoortheen.nix-ide",
+        "editorconfig.editorconfig",
+        "DavidAnson.vscode-markdownlint",
+        "yzhang.markdown-all-in-one",
+        "ms-vscode.cpptools",
+        "ms-vscode.vscode-serial-monitor",
+        "ms-python.python"
+      ]
+    }
+  }
+}

@@ -1,0 +1,45 @@
+menu "Postern"
+
+    comment "GPIOs are on the chip that runs this component. -1 means unset."
+
+    config POSTERN_I2S_BCLK_GPIO
+        int "I2S bit clock GPIO"
+        range -1 48
+        default -1
+        help
+            Input. The peer is the I2S master and drives this clock.
+
+    config POSTERN_I2S_WS_GPIO
+        int "I2S word-select GPIO"
+        range -1 48
+        default -1
+        help
+            Input. Word select, also called LRCK.
+
+    config POSTERN_I2S_DIN_GPIO
+        int "I2S data-in GPIO"
+        range -1 48
+        default -1
+        help
+            Input. PCM arrives on this pin. This component does not send audio back.
+
+    config POSTERN_I2C_SDA_GPIO
+        int "I2C SDA GPIO"
+        range -1 48
+        default -1
+        help
+            This chip is the I2C peripheral.
+
+    config POSTERN_I2C_SCL_GPIO
+        int "I2C SCL GPIO"
+        range -1 48
+        default -1
+
+    config POSTERN_I2C_ADDRESS
+        hex "I2C peripheral address"
+        range 0x00 0x7f
+        default 0x00
+        help
+            7-bit address. 0x00 means this build has not chosen one.
+
+endmenu
