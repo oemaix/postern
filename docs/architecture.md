@@ -1,6 +1,6 @@
 # Architecture
 
-Status: baseline · 2026-10-28
+Status: baseline · 2026-10-30
 
 ```mermaid
 flowchart LR
@@ -13,7 +13,7 @@ flowchart LR
   postern -->|A2DP| phones
 ```
 
-Audio on the cable moves only toward Postern. The peer drives BCLK and WS. Postern's I2S peripheral is a slave. I2C uses the register file in `components/postern/include/postern_regs.h` ([D-0014](decisions.md#d-0014-i2c-map)). The 7-bit address is `0x1D` ([D-0016](decisions.md#d-0016-i2c-address)).
+Audio on the cable moves only toward Postern. The peer drives BCLK and WS. Postern's I2S peripheral is a slave. I2C uses the register file in `components/postern/include/postern_regs.h` ([D-0014](decisions.md#d-0014-i2c-map)). The 7-bit address is `0x1D` ([D-0016](decisions.md#d-0016-i2c-address)). Levels, pull-ups, and the controller clock are [cable](cable.md).
 
 ## Compile-time pins
 

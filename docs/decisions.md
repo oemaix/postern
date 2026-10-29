@@ -42,16 +42,17 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 ### D-0002 Component
 
 - **Status:** Decided
-- **Choice:** This repository is an ESP-IDF component. The consuming project's application is the image that gets flashed. Other projects reuse it by building the component with their own sdkconfig.
+- **Choice:** Superseded by [D-0021](#d-0021-image). This repository is the Stamp Pico image.
+- **History:** The original choice was an ESP-IDF component only. A consuming project's application was the image that got flashed.
 - **Source:** Project decision, 2026-10-28.
-- **Consequence:** Superseded by [D-0021](#d-0021-image). The original consequence was no `main/` and no partition table ([P-0003](pitfalls.md#p-0003-no-application)), with a released binary produced by a consuming project.
+- **Consequence:** The original ban on `main/` no longer applies ([P-0003](pitfalls.md#p-0003-no-application)). The live rule is one image ([P-0034](pitfalls.md#p-0034-one-image)).
 
 ### D-0003 Role
 
 - **Status:** Decided
 - **Choice:** Postern is an I2S slave and an I2C peripheral. PCM moves only from the peer to Postern, then out over A2DP. The peer is the I2S master and the I2C controller.
 - **Source:** The Porta cable contract, 2026-10-28.
-- **Consequence:** BCLK, WS, and DIN are inputs. Postern does not drive a data output back to the peer.
+- **Consequence:** BCLK, WS, and DIN are inputs. Postern does not drive a data output back to the peer. Levels, pull-ups, and the 100 kHz controller clock are [cable](cable.md).
 
 ### D-0004 Compile-time pins
 
@@ -98,9 +99,10 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 ### D-0010 No IDF yet
 
 - **Status:** Decided
-- **Choice:** The devshell installs esptool, CMake, and Ninja. It does not install `idf.py`.
+- **Choice:** Superseded by [D-0022](#d-0022-idf-in-the-shell).
+- **History:** The devshell installed esptool, CMake, and Ninja, and did not install `idf.py`.
 - **Source:** nixpkgs 26.05 has no ESP-IDF package that this pin can import cleanly.
-- **Consequence:** Superseded by [D-0022](#d-0022-idf-in-the-shell). The esptool clause was superseded by [D-0020](#d-0020-no-esptool), which [D-0022](#d-0022-idf-in-the-shell) also supersedes.
+- **Consequence:** [D-0022](#d-0022-idf-in-the-shell) also supersedes [D-0020](#d-0020-no-esptool).
 
 ### D-0011 No UI
 
@@ -165,23 +167,25 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 ### D-0015 Python
 
 - **Status:** Decided
-- **Choice:** The recommendation on this id was the flake's `python3` and the standard library, then `uv` and a gitignored `.venv` on the day a third-party package is imported. `pip` is not used. That `.venv` stays separate from the Python tree ESP-IDF will install for `idf.py`.
+- **Choice:** Superseded by [D-0019](#d-0019-python-out-of-the-flake).
+- **History:** The recommendation was the flake's `python3` and the standard library, then `uv` and a gitignored `.venv` on the day a third-party package is imported. `pip` was not used.
 - **Source:** Open question, 2026-10-28. The same question Porta recorded that day.
-- **Consequence:** Superseded by [D-0019](#d-0019-python-out-of-the-flake). The flake no longer carries `python3` or `uv`. [P-0008](pitfalls.md#p-0008-pip) still forbids `pip`.
+- **Consequence:** The flake no longer carries `python3` or `uv`. [P-0008](pitfalls.md#p-0008-pip) still forbids `pip`.
 
 ### D-0019 Python out of the flake
 
 - **Status:** Decided
-- **Choice:** The Postern flake does not carry a Python interpreter, `uv`, or `pip`. This supersedes [D-0015](#d-0015-python). Nothing in this repository imports a third-party Python package, so that ecosystem stays out of `flake.nix` until a Postern script must use it. On that day a gitignored `.venv` is created with `uv`. `pip` is not used. That `.venv` stays separate from the Python tree ESP-IDF will install for `idf.py`.
-- **Source:** Project decision, 2026-10-29. `python3` and `uv` left the flake because this repository does not call them. Same policy as Porta D-0044.
-- **Consequence:** `nix develop` does not put `python3` on `PATH`. The agent hook remains standard-library Python and is started by the `python3` that launches it. No `.venv` and no `requirements.txt` until a third-party import exists. [P-0008](pitfalls.md#p-0008-pip). [P-0028](pitfalls.md#p-0028-python-in-the-flake).
+- **Choice:** The Postern flake does not carry a Python interpreter, `uv`, or `pip` for the hook or for a project `.venv`. This supersedes [D-0015](#d-0015-python). Nothing in this repository imports a third-party Python package, so that ecosystem stays out of `flake.nix` until a Postern script must use it. On that day a gitignored `.venv` is created with `uv`. `pip` is not used. The Python inside the ESP-IDF install is not a project interpreter and is not this ban. A flake package added because the image build needs it is not this ban either. Porta records the same policy as Porta D-0044.
+- **Source:** Project decision, 2026-10-29, revised 2026-10-30. `python3` and `uv` left the flake because this repository does not call them.
+- **Consequence:** `nix develop` does not put `python3` on `PATH` today. `idf.py` keeps Python 3.13 inside `~/.espressif`. The agent hook remains standard-library Python and is started by the `python3` that launches it. No `.venv` and no `requirements.txt` until a third-party import exists. [P-0008](pitfalls.md#p-0008-pip). [P-0028](pitfalls.md#p-0028-python-in-the-flake).
 
 ### D-0020 No esptool
 
 - **Status:** Decided
-- **Choice:** The devshell does not install esptool. This supersedes the esptool clause of [D-0010](#d-0010-no-idf-yet). CMake and Ninja stay. `idf.py` stays out.
-- **Source:** Project edit, 2026-10-29. This repository has no image to flash ([D-0002](#d-0002-component)).
-- **Consequence:** Superseded by [D-0022](#d-0022-idf-in-the-shell). The original consequence was that a consuming project flashes its own application, and that esptool stays out until a command in this shell invokes it.
+- **Choice:** Superseded by [D-0022](#d-0022-idf-in-the-shell).
+- **History:** The devshell did not install esptool. CMake and Ninja stayed. `idf.py` stayed out, because this repository was not yet the image ([D-0002](#d-0002-component)).
+- **Source:** Project edit, 2026-10-29.
+- **Consequence:** `idf.py` provides `esptool.py`. The nixpkgs `esptool` package stays out.
 
 ### D-0021 Image
 
@@ -194,7 +198,7 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 
 - **Status:** Decided
 - **Choice:** The devshell provides `idf.py` for ESP-IDF v6.1 from [hnaderi/espidf-nix](https://github.com/hnaderi/espidf-nix), built with this nixpkgs pin, for the `esp32` target. Espressif's Installation Manager writes the chip tools under `~/.espressif` on the first run. `esptool.py` is that wrapper's tool. The nixpkgs `esptool` package stays out. This supersedes [D-0010](#d-0010-no-idf-yet) and [D-0020](#d-0020-no-esptool).
-- **Source:** Project decision, 2026-10-30. The same shape as Porta D-0028. The image in [D-0021](#d-0021-image) is what this shell builds and flashes.
+- **Source:** Project decision, 2026-10-30. The Stamp Pico half of Porta D-0028 uses this same shell. The image in [D-0021](#d-0021-image) is what this shell builds and flashes.
 - **Consequence:** `nix develop` puts `idf.py` on `PATH`. The chip toolchain is not in the Nix store ([P-0031](pitfalls.md#p-0031-install-home)). The command needs a mount namespace ([P-0032](pitfalls.md#p-0032-fhs-namespace)). The installer writes the tree under the home of the user who runs `idf.py`. The shell does not bind that tree onto another home. A Nix flake pinned to an older nixpkgs stays out ([P-0006](pitfalls.md#p-0006-idf-flake)). Flash with `idf.py -p` and the port chosen at that moment. The container links the host `ttyUSB*` and `ttyACM*` nodes ([P-0033](pitfalls.md#p-0033-serial-device-node)). This repository does not name a port, a baud rate, or an offset.
 
 ### D-0023 Devcontainer profiles

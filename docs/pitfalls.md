@@ -18,7 +18,7 @@ Agents read this file before design or implementation work, and they add to it w
 
 - **Status:** Open
 - **Avoid:** Do not treat AAC as the first Bluetooth codec to bring up.
-- **Why:** The reference module has no PSRAM. SBC is the session that has to pass ([D-0006](decisions.md#d-0006-bluetooth-codecs)). Checked 2026-10-28: ESP-IDF 6.1 can register an AAC source endpoint on an ESP32, using an external AAC-LC encoder of about 51 KB of heap for 48 kHz stereo. The component now encodes with that library. That has not been measured on the Stamp Pico after the Bluetooth stack is up. An encoder in the tree is not a passed session.
+- **Why:** The reference module has no PSRAM. SBC is the session that has to pass ([D-0006](decisions.md#d-0006-bluetooth-codecs)). The component encodes with an external AAC-LC library. That has not been measured on the Stamp Pico after the Bluetooth stack is up. An encoder in the tree is not a passed session. Porta records the same ban (Porta P-0003, Porta P-0024).
 
 ### P-0004 No resample
 
@@ -60,7 +60,7 @@ Agents read this file before design or implementation work, and they add to it w
 
 - **Status:** Open
 - **Avoid:** Do not set the Postern target to ESP32-S3 or to a C or H series chip.
-- **Why:** Those chips have no Bluetooth Classic, so they cannot open an A2DP source. The target stays ESP32 ([D-0008](decisions.md#d-0008-target)).
+- **Why:** Those chips have no Bluetooth Classic, so they cannot open an A2DP source. The target stays ESP32 ([D-0008](decisions.md#d-0008-target)). Porta records the same ban for the product (Porta P-0030).
 
 ### P-0011 Rate while running
 
@@ -90,7 +90,7 @@ Agents read this file before design or implementation work, and they add to it w
 
 - **Status:** Open
 - **Avoid:** Do not answer an I2C read one byte at a time, and do not leave unread bytes in the slave TX ring buffer.
-- **Why:** On the ESP32 the request callback runs once per read. Bytes that spill into the ring buffer are sent ahead of the next reply. The register file is eight bytes and fits in the hardware FIFO.
+- **Why:** On the ESP32 the request callback runs once per read, and the peripheral cannot stretch SCL, so that callback is the whole reply. Bytes that spill into the ring buffer are sent ahead of the next reply. The register file is eight bytes and fits in the hardware FIFO. The controller clock is 100 kHz ([cable](cable.md)).
 
 ### P-0017 A2DP callback
 
@@ -102,7 +102,7 @@ Agents read this file before design or implementation work, and they add to it w
 
 - **Status:** Open
 - **Avoid:** Do not leave `BT_A2DP_USE_EXTERNAL_CODEC` unset, and do not register AAC without an SBC endpoint.
-- **Why:** The flag removes Bluedroid's built-in SBC encoder. The PCM data callback then has nothing to feed. Postern registers AAC-LC at SEID 0 and SBC at SEID 1, encodes with `esp_audio_codec`, and sends frames with `esp_a2d_source_audio_data_send`. AAC frames are raw, without ADTS; the stack adds LATM, so a frame has to fit in the MTU minus 20 bytes. The AAC encoder is opened only after that codec is negotiated, and a failure falls back to SBC. A negotiated AAC bitrate the encoder cannot send inside the MTU ends that AAC attempt and falls back to SBC. The control task does not wait for the encoder to open. The codec table's 40 KB task stack is what this task requests. This path has not been measured on the Stamp Pico ([P-0002](#p-0002-aac-first)).
+- **Why:** The flag removes Bluedroid's built-in SBC encoder. The PCM data callback then has nothing to feed. Postern registers AAC-LC at SEID 0 and SBC at SEID 1, encodes with `esp_audio_codec`, and sends frames with `esp_a2d_source_audio_data_send`. AAC frames are raw, without ADTS; the stack adds LATM, so a frame has to fit in the MTU minus 20 bytes. The AAC encoder is opened only after that codec is negotiated, and a failure falls back to SBC. A negotiated AAC bitrate the encoder cannot send inside the MTU ends that AAC attempt and falls back to SBC. The control task does not wait for the encoder to open. The codec table's 40 KB task stack is what this task requests.
 
 ### P-0019 Encoder task
 
@@ -155,8 +155,8 @@ Agents read this file before design or implementation work, and they add to it w
 ### P-0028 Python in the flake
 
 - **Status:** Open
-- **Avoid:** Do not add `python3`, `uv`, or `pip` to the Postern flake until a Postern script must import a third-party package. Do not treat the agent hook or `idf.py` as that need.
-- **Why:** [D-0019](decisions.md#d-0019-python-out-of-the-flake). `python3` and `uv` left the flake because this repository does not import them. `idf.py` keeps Python 3.13 inside `~/.espressif` ([D-0022](decisions.md#d-0022-idf-in-the-shell)). The hook is a standard-library script started by the host `python3`. When a third-party import arrives, add `uv` and create a gitignored `.venv` with it. `pip` stays out ([P-0008](#p-0008-pip)).
+- **Avoid:** Do not add `python3`, `uv`, or `pip` to the Postern flake merely because the hook or `idf.py` exists. Do not `pip install` for the image build.
+- **Why:** [D-0019](decisions.md#d-0019-python-out-of-the-flake). The hook is a standard-library script started by the host `python3`. `idf.py` keeps Python 3.13 inside `~/.espressif` ([D-0022](decisions.md#d-0022-idf-in-the-shell)). That install's Python, and a flake package added because the image build needs it, are not this ban. Porta records the same policy (Porta D-0044, Porta P-0044). `pip` stays out ([P-0008](#p-0008-pip)). A project `.venv` is created with `uv` on the day a Postern script imports a third-party package.
 
 ### P-0030 Reuse directory
 
@@ -188,19 +188,25 @@ Agents read this file before design or implementation work, and they add to it w
 - **Avoid:** Do not add a second application, an example image, or another `main/` beside the repository root.
 - **Why:** This repository is the Stamp Pico image ([D-0021](decisions.md#d-0021-image)). Another `main` becomes a second product. Another project reuses `components/postern` ([P-0030](#p-0030-reuse-directory)).
 
+### P-0035 I2C pull-ups
+
+- **Status:** Open
+- **Avoid:** Do not treat the ESP32 internal pull-ups as the I2C bus pull-ups. Do not pull SDA or SCL up to 5 V. Do not add a second pull-up pair on the Stamp Pico when the peer is a Core2 PORT.A. Do not clock this bus at 400 kHz.
+- **Why:** SDA and SCL are open-drain. The Porta cable uses the Core2 pair, 5.1 kΩ to 3.3 V ([cable](cable.md)). The Stamp Pico header has no such resistor. `postern_init` still enables the internal pull-ups, about 45 kΩ, and they stay. The ESP32 slave cannot stretch SCL ([P-0016](#p-0016-i2c-read)).
+
 ## Resolved
 
 ### P-0014 External codec
 
 - **Status:** Resolved
-- **Avoid:** Do not set `BT_A2DP_USE_EXTERNAL_CODEC` for the built-in SBC phase.
-- **Why:** Resolved 2026-10-28. AAC needs that flag, so the built-in encoder is no longer the path. The binding rule is [P-0018](#p-0018-external-codec).
+- **Avoid:** Superseded by [P-0018](#p-0018-external-codec). The old ban, "do not set `BT_A2DP_USE_EXTERNAL_CODEC`", no longer applies.
+- **Resolution:** Resolved 2026-10-28. AAC needs that flag, so the built-in encoder is no longer the path.
 
 ### P-0003 No application
 
 - **Status:** Resolved
-- **Avoid:** Do not add `main/`, a partition table, or a flashable example in this repository.
-- **Why:** Resolved 2026-10-30. [D-0021](decisions.md#d-0021-image) makes this repository the Stamp Pico image, so `main/` is the image entry. The binding rule is [P-0034](#p-0034-one-image).
+- **Avoid:** Superseded by [P-0034](#p-0034-one-image). The old ban, "do not add `main/`", no longer applies. `main/` is the image entry.
+- **Resolution:** Resolved 2026-10-30. [D-0021](decisions.md#d-0021-image) makes this repository the Stamp Pico image.
 
 ### P-0022 Zsh exit status
 
@@ -211,5 +217,5 @@ Agents read this file before design or implementation work, and they add to it w
 ### P-0029 esptool in the flake
 
 - **Status:** Resolved
-- **Avoid:** Do not add esptool to this flake until a command in this shell flashes or inspects an image.
-- **Why:** Resolved 2026-10-30. The image is flashed with `idf.py`, whose wrapper provides `esptool.py` ([D-0022](decisions.md#d-0022-idf-in-the-shell)). The nixpkgs `esptool` package stays out.
+- **Avoid:** Superseded by [D-0022](decisions.md#d-0022-idf-in-the-shell). The old ban, "do not add esptool until this shell flashes", no longer applies.
+- **Resolution:** Resolved 2026-10-30. The image is flashed with `idf.py`, whose wrapper provides `esptool.py`. The nixpkgs `esptool` package stays out.

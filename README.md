@@ -14,6 +14,7 @@ Postern is the firmware for the M5Stamp Pico. It takes I2S from a peer that owns
 | [Use cases](docs/use-cases.md) | What this image does, and how another project reuses it |
 | [Requirements](docs/requirements.md) | Functional and non-functional requirements |
 | [Architecture](docs/architecture.md) | Signals, pins, and the build |
+| [Cable](docs/cable.md) | Application note: levels, I2C pull-ups, I2S wiring |
 | [Operations](docs/operations.md) | Devshell, container, editor, how to build and reuse |
 | [Roadmap](docs/roadmap.md) | Phases and current status |
 | [Decisions](docs/decisions.md) | Decided and undecided items (`D-xxxx`) |
