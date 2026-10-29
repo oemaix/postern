@@ -35,8 +35,6 @@
               bashInteractive
               zsh
               git
-              python3
-              uv
               curl
               cacert
               coreutils
@@ -47,7 +45,6 @@
               which
               cmake
               ninja
-              esptool
             ];
           };
         }
