@@ -7,6 +7,18 @@
   "init": true,
   "remoteUser": "vscode",
   "updateRemoteUserUID": false,
+  "capAdd": ["SYS_ADMIN"],
+  "securityOpt": ["seccomp=unconfined"],
+  "initializeCommand": "mkdir -p \"${localEnv:HOME}/.espressif\"",
+  "runArgs": [
+    "--group-add=dialout",
+    "--device-cgroup-rule=c 188:* rmw",
+    "--device-cgroup-rule=c 166:* rmw"
+  ],
+  "mounts": [
+    "source=${localEnv:HOME}/.espressif,target=/root/.espressif,type=bind",
+    "source=/dev,target=/host-dev,type=bind"
+  ],
   "containerEnv": {
     "NIX_CONFIG": "experimental-features = nix-command flakes",
     "DEVCONTAINER_WORKSPACE": "${containerWorkspaceFolder}"

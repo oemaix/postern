@@ -4,7 +4,7 @@ Status: baseline · 2026-10-28
 
 ## Aim
 
-A board that already has an I2S master can gain Bluetooth headphones by compiling this component and wiring five signals. Porta is the first such board. The component does not assume Porta's GPIO numbers.
+A Stamp Pico that receives I2S from a peer can send that audio to Bluetooth headphones. This repository is that firmware. Porta is the first peer. The component does not assume Porta's GPIO numbers, so another project can compile `components/postern` for its own ESP32 board.
 
 ## In scope
 
@@ -12,13 +12,14 @@ A board that already has an I2S master can gain Bluetooth headphones by compilin
 - A2DP source, SBC first and AAC when the headphones negotiate it.
 - A small I2C peripheral interface for sample rate, start, stop, and link status.
 - Compile-time GPIO and address selection.
+- The Stamp Pico image: `main` calls `postern_init`, and this repository flashes that image.
 
 ## Out of scope
 
 - A screen, a button, or a product UI.
 - Wi-Fi, Spotify, AirPlay, or DLNA.
 - Resampling, and playback of any rate other than 44.1 kHz or 48 kHz.
-- An application image in this repository.
+- A second application beside `main/` ([P-0034](pitfalls.md#p-0034-one-image)).
 - Choosing the peer's pins. Those belong to the peer.
 
 ## Phases

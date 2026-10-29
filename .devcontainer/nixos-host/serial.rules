@@ -1,0 +1,4 @@
+# Host tty nodes opened from the devcontainer (P-0033).
+# The tty node needs its own tag. A tag on the parent USB device does not apply.
+KERNEL=="ttyACM[0-9]*", SUBSYSTEM=="tty", MODE="0660", GROUP="dialout", TAG+="uaccess"
+KERNEL=="ttyUSB[0-9]*", SUBSYSTEM=="tty", MODE="0660", GROUP="dialout", TAG+="uaccess"

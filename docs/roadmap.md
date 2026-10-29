@@ -2,11 +2,11 @@
 
 Status: baseline · 2026-10-28
 
-**Current phase:** 1. The I2S slave, the I2C register driver, and A2DP with AAC-LC plus an SBC fallback are in the component. They have not been run on a board.
+**Current phase:** 1. The I2S slave, the I2C register driver, and A2DP with AAC-LC plus an SBC fallback are in the component. `main` calls `postern_init`. They have not been run on a board.
 
 ## Phase 0
 
-This repository: the component entry, the Kconfig pins, the docs, and the devshell. Done.
+This repository: the component, the Stamp Pico image, the Kconfig pins, the docs, and the devshell with `idf.py`. Done as a tree. The image has not been run on a board.
 
 ## Phase 1
 
@@ -19,5 +19,4 @@ This repository: the component entry, the Kconfig pins, the docs, and the devshe
 ## Still open
 
 - The reference defaults are the Stamp Pico GPIOs and address `0x1D` ([D-0017](decisions.md#d-0017-reference-pins), [D-0016](decisions.md#d-0016-i2c-address)). `postern_init` returns `ESP_ERR_INVALID_STATE` while a GPIO is `-1` or the address is `0x00`.
-- `idf.py` is not in this shell ([D-0010](decisions.md#d-0010-no-idf-yet)). This tree has not been linked with ESP-IDF 6.1.
 - SBC and AAC have not been measured on the Stamp Pico ([P-0002](pitfalls.md#p-0002-aac-first)).

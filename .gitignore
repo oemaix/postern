@@ -9,7 +9,7 @@
 /result-*
 .direnv/
 
-# ESP-IDF build output, if a consuming project builds in this tree later.
+# ESP-IDF build output for this image.
 /build/
 /sdkconfig
 /sdkconfig.old

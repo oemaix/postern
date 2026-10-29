@@ -2,7 +2,7 @@ menu "Postern"
 
     comment "GPIOs are on the chip that runs this component. -1 means unset."
     comment "Defaults are the M5Stamp Pico reference wiring. GPIO26 is reserved and is not a symbol. GPIO1 and GPIO3 stay UART0."
-    comment "The consuming project enables Classic Bluetooth A2DP, the external codec, AAC, and at least two stream endpoints."
+    comment "This image sets Classic Bluetooth A2DP, the external codec, AAC, and two stream endpoints in sdkconfig.defaults. A project that reuses the component sets the same symbols."
 
     config POSTERN_I2S_BCLK_GPIO
         int "I2S bit clock GPIO"

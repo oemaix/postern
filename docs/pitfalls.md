@@ -20,12 +20,6 @@ Agents read this file before design or implementation work, and they add to it w
 - **Avoid:** Do not treat AAC as the first Bluetooth codec to bring up.
 - **Why:** The reference module has no PSRAM. SBC is the session that has to pass ([D-0006](decisions.md#d-0006-bluetooth-codecs)). Checked 2026-10-28: ESP-IDF 6.1 can register an AAC source endpoint on an ESP32, using an external AAC-LC encoder of about 51 KB of heap for 48 kHz stereo. The component now encodes with that library. That has not been measured on the Stamp Pico after the Bluetooth stack is up. An encoder in the tree is not a passed session.
 
-### P-0003 No application
-
-- **Status:** Open
-- **Avoid:** Do not add `main/`, a partition table, or a flashable example in this repository.
-- **Why:** [D-0002](decisions.md#d-0002-component) keeps the image in the consuming project. An example here would become a second product.
-
 ### P-0004 No resample
 
 - **Status:** Open
@@ -42,7 +36,7 @@ Agents read this file before design or implementation work, and they add to it w
 
 - **Status:** Open
 - **Avoid:** Do not import a third-party ESP-IDF Nix flake that is pinned to an older nixpkgs.
-- **Why:** This shell is nixpkgs 26.05 ([D-0009](decisions.md#d-0009-nixpkgs)). Those flakes currently break on that pin. `idf.py` arrives in a later change that can build against it ([D-0010](decisions.md#d-0010-no-idf-yet)).
+- **Why:** This shell is nixpkgs 26.05 ([D-0009](decisions.md#d-0009-nixpkgs)). `idf.py` comes from [hnaderi/espidf-nix](https://github.com/hnaderi/espidf-nix) built with this pin ([D-0022](decisions.md#d-0022-idf-in-the-shell)). A flake pinned to an older nixpkgs breaks on this pin.
 
 ### P-0007 Unset config
 
@@ -83,7 +77,7 @@ Agents read this file before design or implementation work, and they add to it w
 ### P-0013 I2C IRAM
 
 - **Status:** Open
-- **Avoid:** Do not set `CONFIG_I2C_ISR_IRAM_SAFE` in the consuming project.
+- **Avoid:** Do not set `CONFIG_I2C_ISR_IRAM_SAFE` in this image or in a project that reuses the component.
 - **Why:** The register callbacks run from the I2C interrupt and call `i2c_slave_write`. They are not placed in IRAM.
 
 ### P-0015 Open pairing
@@ -132,7 +126,7 @@ Agents read this file before design or implementation work, and they add to it w
 
 - **Status:** Open
 - **Avoid:** Do not start the interactive devshell zsh with no startup file.
-- **Why:** Nix's zsh loads `zsh/newuser` when `.zshrc` is missing. As uid 0 that installer returns 1, so a following `exit` closes the terminal with status 1. The devshell sets `ZDOTDIR` to `shell/`, whose `.zshrc` shows the working directory and ends successfully.
+- **Why:** Nix's zsh loads `zsh/newuser` when `.zshrc` is missing. As uid 0 that installer returns 1, so a following `exit` closes the terminal with status 1. The devshell sets `ZDOTDIR` to `shell/`, whose `.zshrc` shows the working directory and ends successfully. A NixOS host still sources `/etc/zshrc` after that. That file installs `command_not_found_handler`, and the handler returns 127. The devcontainer image does not have this rc. `shell/.zshenv` turns global rc files off, so a following `exit` is not that status. `/etc/zshenv` still runs. The devshell also sets `SHELL` to its own zsh. Nix's setup would otherwise leave `SHELL` as the non-interactive bash from the build environment.
 
 ### P-0023 Container uid
 
@@ -167,14 +161,38 @@ Agents read this file before design or implementation work, and they add to it w
 ### P-0028 Python in the flake
 
 - **Status:** Open
-- **Avoid:** Do not add `python3`, `uv`, or `pip` to the Postern flake until a Postern script must import a third-party package. Do not treat the agent hook or a later `idf.py` as that need.
-- **Why:** [D-0019](decisions.md#d-0019-python-out-of-the-flake). `python3` and `uv` left the flake because this repository does not import them. The hook is a standard-library script started by the host `python3`. When a third-party import arrives, add `uv` and create a gitignored `.venv` with it. `pip` stays out ([P-0008](#p-0008-pip)).
+- **Avoid:** Do not add `python3`, `uv`, or `pip` to the Postern flake until a Postern script must import a third-party package. Do not treat the agent hook or `idf.py` as that need.
+- **Why:** [D-0019](decisions.md#d-0019-python-out-of-the-flake). `python3` and `uv` left the flake because this repository does not import them. `idf.py` keeps Python 3.13 inside `~/.espressif` ([D-0022](decisions.md#d-0022-idf-in-the-shell)). The hook is a standard-library script started by the host `python3`. When a third-party import arrives, add `uv` and create a gitignored `.venv` with it. `pip` stays out ([P-0008](#p-0008-pip)).
 
-### P-0029 esptool in the flake
+### P-0030 Reuse directory
 
 - **Status:** Open
-- **Avoid:** Do not add esptool to this flake until a command in this shell flashes or inspects an image.
-- **Why:** [D-0020](decisions.md#d-0020-no-esptool). This repository has no flashable image ([D-0002](decisions.md#d-0002-component)). The consuming project owns that step. `idf.py` stays out as well ([D-0010](decisions.md#d-0010-no-idf-yet)).
+- **Avoid:** Do not point `EXTRA_COMPONENT_DIRS` at the repository root. Do not run `idf.py` inside `components/postern`.
+- **Why:** The root `CMakeLists.txt` is the application ([D-0021](decisions.md#d-0021-image)). `idf.py build` runs there. The reusable component is `components/postern`. A reusing project sets `EXTRA_COMPONENT_DIRS` to that directory. The root file is the project, so a directory that contains it is one component and the search does not walk into `components/postern`.
+
+### P-0031 Install home
+
+- **Status:** Open
+- **Avoid:** Do not expect one `~/.espressif` tree to work under a different home. Do not commit `~/.espressif` or `~/.cache/espidf-nix`. Do not rewrite the activation script to one absolute path. Do not point `IDF_VERSION` at an unpinned tag.
+- **Why:** [D-0022](decisions.md#d-0022-idf-in-the-shell). [hnaderi/espidf-nix](https://github.com/hnaderi/espidf-nix) puts `idf.py` on `PATH`. Espressif's installer writes v6.1 under `~/.espressif` the first time that command runs. The store holds the wrapper, not the chip tools. The installer writes absolute paths into the activation script and the virtualenv shebangs. In the devcontainer that home is `/root` ([P-0023](#p-0023-container-uid)). The bind mount stores those files in the login user's `~/.espressif`. On the host the `/root` paths are not that tree. The devshell puts wrappers ahead of `idf.py`. When the user's tree exists and `/root/.espressif` does not, the wrapper bind-mounts the tree at `/root/.espressif` for that command. The container already has `/root/.espressif`, so the wrapper runs the real command there.
+
+### P-0032 FHS namespace
+
+- **Status:** Open
+- **Avoid:** Do not drop [hnaderi/espidf-nix](https://github.com/hnaderi/espidf-nix) because bubblewrap failed in one container. Do not replace it with an ESP-IDF flake pinned to an older nixpkgs.
+- **Why:** `idf.py` runs inside `buildFHSEnv`. That needs a new mount namespace. A container that forbids it stops at `bwrap: Creating new namespace failed`. Both devcontainers add `SYS_ADMIN` and `seccomp=unconfined` ([D-0022](decisions.md#d-0022-idf-in-the-shell)). A running container does not gain that until it is rebuilt. The wrapper is still the shell's `idf.py`.
+
+### P-0033 Serial device node
+
+- **Status:** Open
+- **Avoid:** Do not `mknod` the serial node inside the container. Do not mount the host `/dev` on the container `/dev`. Do not bind one host device inode with `--device`. Do not make the host nodes world-writable. Do not name a baud rate or a flash offset in `devcontainer.json`. Do not treat a `uaccess` tag on the parent USB device as access to the tty node. Do not link only `ttyUSB0` and `ttyACM0`. Do not open the host tty from the entrypoint scan.
+- **Why:** The bench nodes are `ttyUSB*` (major 188) and `ttyACM*` (major 166). Rootless Docker maps container uid 0 to the host user. `mknod` in that user namespace returns EPERM. A `--device` bind is one host inode and disappears when the cable is unplugged. Both configs bind the host `/dev` at `/host-dev`. The entrypoint links each `ttyUSB*` and `ttyACM*` node into `/dev` and repeats the scan while the container runs. Opening the node from that scan toggles modem lines and resets the board. `idf.py` bind-mounts `/dev` and `/host-dev` when it starts. The device cgroup allows majors 188 and 166. Host group `dialout` is not a gid in this map, and mode `0660` is not readable here until the host grants the session user. `.devcontainer/nixos-host/serial.rules` sets that mode, group `dialout`, and `TAG+="uaccess"` on every such node. NixOS imports `.devcontainer/nixos-host/serial-udev.nix`. A tag on the parent USB device does not do that. The entrypoint is copied into the image, so a running container stays on the old scan until it is rebuilt.
+
+### P-0034 One image
+
+- **Status:** Open
+- **Avoid:** Do not add a second application, an example image, or another `main/` beside the repository root.
+- **Why:** This repository is the Stamp Pico image ([D-0021](decisions.md#d-0021-image)). Another `main` becomes a second product. Another project reuses `components/postern` ([P-0030](#p-0030-reuse-directory)).
 
 ## Resolved
 
@@ -183,3 +201,15 @@ Agents read this file before design or implementation work, and they add to it w
 - **Status:** Resolved
 - **Avoid:** Do not set `BT_A2DP_USE_EXTERNAL_CODEC` for the built-in SBC phase.
 - **Why:** Resolved 2026-10-28. AAC needs that flag, so the built-in encoder is no longer the path. The binding rule is [P-0018](#p-0018-external-codec).
+
+### P-0003 No application
+
+- **Status:** Resolved
+- **Avoid:** Do not add `main/`, a partition table, or a flashable example in this repository.
+- **Why:** Resolved 2026-10-30. [D-0021](decisions.md#d-0021-image) makes this repository the Stamp Pico image, so `main/` is the image entry. The binding rule is [P-0034](#p-0034-one-image).
+
+### P-0029 esptool in the flake
+
+- **Status:** Resolved
+- **Avoid:** Do not add esptool to this flake until a command in this shell flashes or inspects an image.
+- **Why:** Resolved 2026-10-30. The image is flashed with `idf.py`, whose wrapper provides `esptool.py` ([D-0022](decisions.md#d-0022-idf-in-the-shell)). The nixpkgs `esptool` package stays out.
