@@ -12,7 +12,7 @@ Agents read this file before design or implementation work, and they add to it w
 
 - **Status:** Open
 - **Avoid:** Do not copy the peer's GPIO numbers into Postern's Kconfig as if they were the same pins.
-- **Why:** The numbers in a product cable table name the peer. Postern's symbols name the chip this component runs on. On Porta the peer numbers are Core2 GPIOs: GPIO32 and GPIO33 for I2C, GPIO14, GPIO13, and GPIO26 for I2S. The Stamp Pico defaults are GPIO21, GPIO22, GPIO18, GPIO19, and GPIO36 ([D-0017](decisions.md#d-0017-reference-pins)). Core2 GPIO26 and Stamp Pico GPIO26 are not the same net.
+- **Why:** The numbers in a product cable table name the peer. Postern's symbols name the chip this component runs on. On Porta the peer numbers are Core2 GPIOs: GPIO32 and GPIO33 for I2C, GPIO14, GPIO13, and GPIO26 for I2S. The Stamp Pico defaults are GPIO21, GPIO22, GPIO18, GPIO19, and GPIO26 ([D-0017](decisions.md#d-0017-reference-pins)). The data wire joins Core2 GPIO26 to Stamp Pico GPIO26. The clock and I2C numbers do not match across the two chips. Stamp Pico GPIO36 is not that wire.
 
 ### P-0002 AAC first
 
@@ -110,11 +110,11 @@ Agents read this file before design or implementation work, and they add to it w
 - **Avoid:** Do not delete the encoder task, and do not close its encoder from another task.
 - **Why:** `esp_audio_enc_open` and `i2s_channel_read` cannot be aborted. `vTaskDelete` during those calls can corrupt the heap or the I2S driver. The task checks the stop flag after each call and frees the encoder itself. The I2S channel stays enabled if that task has not left the driver.
 
-### P-0020 Input-only DIN
+### P-0020 Input-only GPIO36
 
 - **Status:** Open
-- **Avoid:** Do not use GPIO36 as an I2S data output, and do not treat reserved GPIO26 as a pin this component already drives.
-- **Why:** On the ESP32, GPIO36 is input-only. The Stamp Pico reference uses it for DIN ([D-0017](decisions.md#d-0017-reference-pins)). GPIO26 can drive a later headset-microphone output. That path is not in the component, so nothing reads or drives the pin.
+- **Avoid:** Do not use GPIO36 as an I2S data output, and do not treat GPIO26 as an unused reserved pin.
+- **Why:** On the ESP32, GPIO36 is input-only. The Stamp Pico reference uses GPIO26 for DIN ([D-0017](decisions.md#d-0017-reference-pins)). GPIO36 is not wired. The component reads GPIO26 and does not drive GPIO36.
 
 ### P-0021 Ubuntu uid 1000
 
