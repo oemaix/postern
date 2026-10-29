@@ -24,6 +24,6 @@ The controller clock is 100 kHz. The ESP32 peripheral cannot stretch SCL. The re
 
 BCLK, WS, and DIN are push-pull from the peer. They take no pull-ups. MCLK is not connected. Postern does not drive a data pin back to the peer.
 
-The format is Philips, 16-bit stereo, 44.1 kHz or 48 kHz ([D-0005](decisions.md#d-0005-pcm-format)). The channel is opened with `I2S_ROLE_SLAVE` and `I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG`. The peer is the only clock master. GPIO26 is DIN. GPIO36 is input-only and is not this wire ([P-0020](pitfalls.md#p-0020-input-only-gpio36)).
+The format is Philips, 16-bit stereo, 44.1 kHz or 48 kHz ([D-0005](decisions.md#d-0005-pcm-format)). The channel is opened with `I2S_ROLE_SLAVE` and `I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG`. The peer is the only clock master. GPIO36 is DIN because that pin is input-only. GPIO26 stays free for a later data output ([P-0020](pitfalls.md#p-0020-input-only-gpio36)).
 
-Slave-side pins are [D-0017](decisions.md#d-0017-reference-pins). On Porta the peer numbers are Core2 GPIO32 and GPIO33 for I2C, and GPIO14, GPIO13, and GPIO26 for I2S. The data wire is GPIO26 on both chips. The clock and I2C numbers are not ([P-0001](pitfalls.md#p-0001-peer-pins)).
+Slave-side pins are [D-0017](decisions.md#d-0017-reference-pins). On Porta the peer numbers are Core2 GPIO32 and GPIO33 for I2C, and GPIO14, GPIO13, and GPIO26 for I2S. The data wire is Core2 GPIO26 into Stamp Pico GPIO36. Core2 GPIO26 and Stamp Pico GPIO26 are not the same net ([P-0001](pitfalls.md#p-0001-peer-pins)).

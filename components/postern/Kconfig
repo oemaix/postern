@@ -1,7 +1,7 @@
 menu "Postern"
 
     comment "GPIOs are on the chip that runs this component. -1 means unset."
-    comment "Defaults are the M5Stamp Pico reference wiring. GPIO36 is input-only and is not a symbol. GPIO1 and GPIO3 stay UART0."
+    comment "Defaults are the M5Stamp Pico reference wiring. GPIO26 is reserved and is not a symbol. GPIO1 and GPIO3 stay UART0."
     comment "This image sets Classic Bluetooth A2DP, the external codec, AAC, and two stream endpoints in sdkconfig.defaults. A project that reuses the component sets the same symbols."
 
     config POSTERN_I2S_BCLK_GPIO
@@ -23,10 +23,10 @@ menu "Postern"
     config POSTERN_I2S_DIN_GPIO
         int "I2S data-in GPIO"
         range -1 48
-        default 26
+        default 36
         help
             Input. PCM arrives on this pin. This component does not send audio back.
-            The Stamp Pico reference uses GPIO26. GPIO36 is input-only and is not used.
+            The Stamp Pico reference uses GPIO36, which is input-only.
 
     config POSTERN_I2C_SDA_GPIO
         int "I2C SDA GPIO"

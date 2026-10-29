@@ -146,8 +146,8 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 ### D-0017 Reference pins
 
 - **Status:** Decided
-- **Choice:** The M5Stamp Pico reference defaults are GPIO21 for SDA, GPIO22 for SCL, GPIO18 for BCLK, GPIO19 for WS, and GPIO26 for DIN. GPIO36 is not a Kconfig symbol. It is input-only, so it is not a data output. GPIO1 and GPIO3 stay UART0. Another board overrides the five symbols. The I2C address is [D-0016](#d-0016-i2c-address).
-- **Source:** Project decision, 2026-10-29, revised 2026-10-30. Those GPIOs are on the Stamp Pico header. DIN moved from GPIO36 to GPIO26. GPIO36 stays unwired.
+- **Choice:** The M5Stamp Pico reference defaults are GPIO21 for SDA, GPIO22 for SCL, GPIO18 for BCLK, GPIO19 for WS, and GPIO36 for DIN. GPIO26 stays free for a later I2S data output and is not a Kconfig symbol. GPIO1 and GPIO3 stay UART0. Another board overrides the five symbols. The I2C address is [D-0016](#d-0016-i2c-address).
+- **Source:** Project decision, 2026-10-29, revised 2026-10-30. Those GPIOs are on the Stamp Pico header. GPIO36 is input-only, so it receives DIN. GPIO26 can drive the later output.
 - **Consequence:** Do not hard-code the numbers in `src/`. A peer's GPIO numbers belong to the other chip ([P-0001](pitfalls.md#p-0001-peer-pins), [P-0020](pitfalls.md#p-0020-input-only-gpio36)). `postern_init` fails while a GPIO is `-1` or the address is `0x00`.
 
 ### D-0016 I2C address
