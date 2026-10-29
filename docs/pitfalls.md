@@ -54,7 +54,7 @@ Agents read this file before design or implementation work, and they add to it w
 
 - **Status:** Open
 - **Avoid:** Do not `pip install` into the devshell, a user site, or a project `.venv`.
-- **Why:** The interpreter is the flake's `python3` until [D-0015](decisions.md#d-0015-python) closes. A virtualenv with no packages is a second interpreter. ESP-IDF will bring its own Python later, and that tree stays separate.
+- **Why:** [D-0019](decisions.md#d-0019-python-out-of-the-flake). A `.venv`, when one is required, is created with `uv`. That directory must not be the Python tree ESP-IDF installs for `idf.py`. The flake does not carry `uv` until that day ([P-0028](#p-0028-python-in-the-flake)).
 
 ### P-0009 Partial rate
 
@@ -163,6 +163,18 @@ Agents read this file before design or implementation work, and they add to it w
 - **Status:** Open
 - **Avoid:** Do not hardcode `/workspaces/postern` in the entrypoint or the image `WORKDIR`.
 - **Why:** Dev Containers mounts the checkout at `/workspaces/` plus the directory name. A clone under another name leaves `vscode` on the image uid ([P-0023](#p-0023-container-uid)). Both configs set `DEVCONTAINER_WORKSPACE` to `${containerWorkspaceFolder}`.
+
+### P-0028 Python in the flake
+
+- **Status:** Open
+- **Avoid:** Do not add `python3`, `uv`, or `pip` to the Postern flake until a Postern script must import a third-party package. Do not treat the agent hook or a later `idf.py` as that need.
+- **Why:** [D-0019](decisions.md#d-0019-python-out-of-the-flake). `python3` and `uv` left the flake because this repository does not import them. The hook is a standard-library script started by the host `python3`. When a third-party import arrives, add `uv` and create a gitignored `.venv` with it. `pip` stays out ([P-0008](#p-0008-pip)).
+
+### P-0029 esptool in the flake
+
+- **Status:** Open
+- **Avoid:** Do not add esptool to this flake until a command in this shell flashes or inspects an image.
+- **Why:** [D-0020](decisions.md#d-0020-no-esptool). This repository has no flashable image ([D-0002](decisions.md#d-0002-component)). The consuming project owns that step. `idf.py` stays out as well ([D-0010](decisions.md#d-0010-no-idf-yet)).
 
 ## Resolved
 

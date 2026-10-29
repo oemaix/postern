@@ -20,10 +20,12 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 | [D-0012](#d-0012-no-remote) | Decided | No network remote; Porta uses a local path |
 | [D-0013](#d-0013-license) | Decided | Apache License 2.0 |
 | [D-0014](#d-0014-i2c-map) | Decided | Register file, offsets `0x00`–`0x07` |
-| [D-0015](#d-0015-python) | Undecided | The flake's Python is enough until a package is needed |
+| [D-0015](#d-0015-python) | Decided | Superseded by D-0019 |
 | [D-0016](#d-0016-i2c-address) | Decided | 7-bit address `0x1D` |
 | [D-0017](#d-0017-reference-pins) | Decided | Stamp Pico GPIO defaults |
 | [D-0018](#d-0018-devcontainer) | Decided | Ubuntu 26.04, Nix 2.35.4, two host configs |
+| [D-0019](#d-0019-python-out-of-the-flake) | Decided | No project Python in the flake; a later `.venv` uses `uv` |
+| [D-0020](#d-0020-no-esptool) | Decided | The shell does not install esptool |
 
 ## Decided
 
@@ -95,7 +97,7 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 - **Status:** Decided
 - **Choice:** The devshell installs esptool, CMake, and Ninja. It does not install `idf.py`.
 - **Source:** nixpkgs 26.05 has no ESP-IDF package that this pin can import cleanly.
-- **Consequence:** The component sources are not built in phase 0.
+- **Consequence:** The component sources are not built in phase 0. The esptool clause is superseded by [D-0020](#d-0020-no-esptool). `idf.py` stays out.
 
 ### D-0011 No UI
 
@@ -157,12 +159,23 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 - **Source:** The same container shape as Porta, 2026-10-29. Opening this repository alone needs its own image. Porta's container remains the one for the product checkout.
 - **Consequence:** The installer URL is pinned ([P-0026](pitfalls.md#p-0026-floating-nix-installer)). `sandbox = false` stays in the image. The entrypoint moves `vscode` onto the workspace owner inside the container ([P-0023](pitfalls.md#p-0023-container-uid)). `DEVCONTAINER_WORKSPACE` is that path ([P-0027](pitfalls.md#p-0027-checkout-directory-name)). Only the NixOS config mounts `/nix` ([P-0025](pitfalls.md#p-0025-one-devcontainer-for-every-host)). `/etc/nix/nix.conf` sets `accept-flake-config = false` ([P-0024](pitfalls.md#p-0024-host-nix-store)). The terminal profile is `.vscode/settings.json`. zsh comes from the devshell ([P-0022](pitfalls.md#p-0022-zsh-exit-status)).
 
-## Undecided
-
 ### D-0015 Python
 
-- **Status:** Undecided
-- **Options:** The flake's `python3` only. `uv` plus a gitignored `.venv` as soon as the shell exists. `pip` into that environment.
-- **Recommendation:** The flake is enough today. The hook and the shell scripts use the standard library and nothing from PyPI. Add `uv` to `flake.nix`, and create a gitignored `.venv` with it, on the day a third-party package is imported. Do not use `pip`. Keep that environment separate from the Python tree ESP-IDF will install for `idf.py`.
-- **Source:** Same choice as Porta, 2026-10-28.
-- **Consequence:** No `.venv`, no `uv`, and no `requirements.txt` until this id closes. [P-0008](pitfalls.md#p-0008-pip).
+- **Status:** Decided
+- **Choice:** The recommendation on this id was the flake's `python3` and the standard library, then `uv` and a gitignored `.venv` on the day a third-party package is imported. `pip` is not used. That `.venv` stays separate from the Python tree ESP-IDF will install for `idf.py`.
+- **Source:** Open question, 2026-10-28. The same question Porta recorded that day.
+- **Consequence:** Superseded by [D-0019](#d-0019-python-out-of-the-flake). The flake no longer carries `python3` or `uv`. [P-0008](pitfalls.md#p-0008-pip) still forbids `pip`.
+
+### D-0019 Python out of the flake
+
+- **Status:** Decided
+- **Choice:** The Postern flake does not carry a Python interpreter, `uv`, or `pip`. This supersedes [D-0015](#d-0015-python). Nothing in this repository imports a third-party Python package, so that ecosystem stays out of `flake.nix` until a Postern script must use it. On that day a gitignored `.venv` is created with `uv`. `pip` is not used. That `.venv` stays separate from the Python tree ESP-IDF will install for `idf.py`.
+- **Source:** Project decision, 2026-10-29. `python3` and `uv` left the flake because this repository does not call them. Same policy as Porta D-0044.
+- **Consequence:** `nix develop` does not put `python3` on `PATH`. The agent hook remains standard-library Python and is started by the `python3` that launches it. No `.venv` and no `requirements.txt` until a third-party import exists. [P-0008](pitfalls.md#p-0008-pip). [P-0028](pitfalls.md#p-0028-python-in-the-flake).
+
+### D-0020 No esptool
+
+- **Status:** Decided
+- **Choice:** The devshell does not install esptool. This supersedes the esptool clause of [D-0010](#d-0010-no-idf-yet). CMake and Ninja stay. `idf.py` stays out.
+- **Source:** Project edit, 2026-10-29. This repository has no image to flash ([D-0002](#d-0002-component)).
+- **Consequence:** A consuming project flashes its own application. Do not add esptool here until a command in this shell invokes it.

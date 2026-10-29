@@ -21,8 +21,10 @@
         {
           default = pkgs.mkShell {
             # ESP-IDF is the framework (D-0007). nixpkgs 26.05 has esptool,
-            # not a packaged IDF or Xtensa toolchain. Do not add a third-party
-            # ESP-IDF flake here until it builds against this nixpkgs pin.
+            # not a packaged IDF or Xtensa toolchain. This shell does not
+            # install esptool (D-0020) or a project Python (D-0019). Do not
+            # add a third-party ESP-IDF flake here until it builds against
+            # this nixpkgs pin.
             # shell/.zshrc is the interactive prompt and keeps `exit` at 0 (P-0022).
             shellHook = ''
               zdotdir=${./shell}
