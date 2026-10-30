@@ -1,4 +1,4 @@
-# Import from the NixOS configuration (P-0033).
+# Import from the NixOS configuration.
 { ... }:
 {
   services.udev.extraRules = builtins.readFile ./serial.rules;

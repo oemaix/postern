@@ -36,7 +36,7 @@ idf.py set-target esp32
 idf.py build
 ```
 
-The default terminal profile **Nix Develop** runs the same shell, using zsh when the host has zsh and bash otherwise. An optional Ubuntu 26.04 devcontainer installs Nix and opens the same shell. Details are in [docs/operations.md](docs/operations.md).
+The default terminal profile **Nix Develop** runs the same shell. The container is optional. The flake is still the environment, and the host shell is unchanged. Details are in [docs/operations.md](docs/operations.md).
 
 ## Layout
 
@@ -57,7 +57,7 @@ components/postern/         reusable bridge component
 tests/postern_file_test.c   host check of those rules
 docs/                       specification
 flake.nix                   development shell
-.devcontainer/              optional Ubuntu LTS + Nix
+.devcontainer/              optional Ubuntu 26.04 session on the host Nix
 .vscode/                    terminal profile and required extensions
 .cursor/                    local Cursor rules and hook (not tracked)
 ```

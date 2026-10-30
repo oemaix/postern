@@ -1,6 +1,6 @@
 # Operations
 
-Status: baseline · 2026-10-28
+Status: baseline · 2026-10-30
 
 ## Devshell
 
@@ -8,7 +8,7 @@ Status: baseline · 2026-10-28
 nix develop
 ```
 
-The shell provides git, CMake, Ninja, host `gcc`, and `idf.py` for ESP-IDF v6.1 ([D-0022](decisions.md#d-0022-idf-in-the-shell)). It does not provide a project Python, `uv`, or `pip` ([D-0019](decisions.md#d-0019-python-out-of-the-flake)). There is no `.venv`. A later third-party import gets a gitignored `.venv` from `uv`, and `pip` stays unused ([P-0008](pitfalls.md#p-0008-pip), [P-0028](pitfalls.md#p-0028-python-in-the-flake)). Do not add an ESP-IDF flake that is pinned to an older nixpkgs ([P-0006](pitfalls.md#p-0006-idf-flake)). The nixpkgs `esptool` package stays out. `idf.py` provides `esptool.py`.
+The shell provides git and `idf.py` for ESP-IDF v6.1 ([D-0022](decisions.md#d-0022-idf-in-the-shell)). CMake and Ninja for the firmware build are inside that `idf.py` sandbox. The host register-file check uses the compiler Nix puts on `PATH`. The shell does not provide a project Python, `uv`, or `pip` ([D-0019](decisions.md#d-0019-python-out-of-the-flake)). There is no `.venv`. A later third-party import gets a gitignored `.venv` from `uv`, and `pip` stays unused ([P-0008](pitfalls.md#p-0008-pip), [P-0028](pitfalls.md#p-0028-python-in-the-flake)). Do not add an ESP-IDF flake that is pinned to an older nixpkgs ([P-0006](pitfalls.md#p-0006-idf-flake)). The nixpkgs `esptool` package stays out. `idf.py` provides `esptool.py`.
 
 Nix only sees files Git knows about. Stage `flake.nix` and `flake.lock` before the next `nix develop` if either file changed ([P-0005](pitfalls.md#p-0005-untracked-flake)).
 
@@ -21,7 +21,7 @@ idf.py set-target esp32
 idf.py build
 ```
 
-The first command installs ESP-IDF v6.1 for `esp32` under `~/.espressif`. Later commands reuse that install. `idf.py` enters that install through bubblewrap and needs a mount namespace ([P-0032](pitfalls.md#p-0032-fhs-namespace)). A devcontainer install records `/root` in that tree. On the host, where that prefix is missing, the shell binds the login user's tree there for the ESP-IDF commands ([P-0031](pitfalls.md#p-0031-install-home)). Flash with `idf.py -p` and the port chosen at that moment. This page does not name a port, a baud rate, or an offset. The container links every host `ttyUSB*` and `ttyACM*` node into `/dev` while it runs ([P-0033](pitfalls.md#p-0033-serial-device-node)).
+The first command installs ESP-IDF v6.1 for `esp32` under `~/.espressif` of the user who runs it. Later commands reuse that install. `idf.py` enters that install through bubblewrap and needs a mount namespace ([P-0032](pitfalls.md#p-0032-fhs-namespace)). The shell does not retarget that home ([P-0031](pitfalls.md#p-0031-install-home)). Flash with `idf.py -p` and the port chosen at that moment. This page does not name a port, a baud rate, or an offset. The container links every host `ttyUSB*` and `ttyACM*` node into `/dev` while it runs ([P-0033](pitfalls.md#p-0033-serial-device-node)).
 
 The register rules can be checked on the host, without the IDF. The binary goes under `tmp/`, which is scratch.
 
@@ -39,20 +39,11 @@ Another ESP-IDF application sets `EXTRA_COMPONENT_DIRS` to `components/postern` 
 
 ## Devcontainer
 
-The container is optional. `.devcontainer/Dockerfile` builds Ubuntu 26.04 and installs single-user Nix 2.35.4 for the `vscode` user ([D-0018](decisions.md#d-0018-devcontainer), [P-0026](pitfalls.md#p-0026-floating-nix-installer)). That user is the image's existing uid 1000 account, renamed ([P-0021](pitfalls.md#p-0021-ubuntu-uid-1000)). On start, `.devcontainer/entrypoint.sh` moves that account onto the workspace owner. The path is `DEVCONTAINER_WORKSPACE` ([P-0027](pitfalls.md#p-0027-checkout-directory-name)). `updateRemoteUserUID` stays off ([P-0023](pitfalls.md#p-0023-container-uid)).
-
-| Config | Who |
-| --- | --- |
-| **Postern (Nix on Ubuntu)** | A host without NixOS. The Nix store stays in the image. |
-| **Postern (NixOS host store)** | A NixOS host. The container bind-mounts that host's `/nix` read-only and uses its daemon ([P-0024](pitfalls.md#p-0024-host-nix-store), [P-0025](pitfalls.md#p-0025-one-devcontainer-for-every-host)). |
-
-Both configs add `SYS_ADMIN` and `seccomp=unconfined` so `idf.py` can create its mount namespace ([P-0032](pitfalls.md#p-0032-fhs-namespace)). Both bind the login user's `~/.espressif` on the host onto `/root/.espressif` ([P-0031](pitfalls.md#p-0031-install-home)). Both bind the host `/dev` at `/host-dev`. The entrypoint links every `ttyUSB*` and `ttyACM*` node there ([P-0033](pitfalls.md#p-0033-serial-device-node)). The host tty rule is `.devcontainer/nixos-host/serial.rules`. NixOS imports `.devcontainer/nixos-host/serial-udev.nix`. A rebuild is required before a running container sees those mounts and the entrypoint link.
-
-`sandbox = false` and `accept-flake-config = false` are image settings. A rebuild is required after an entrypoint or client change. Those two files are copied into the image.
+The container is optional. The flake is still the environment, and the host shell is unchanged when Docker is never opened. Ubuntu 26.04 is the user session. Opening the folder asks which profile: **postern (NixOS host)**, **postern (Nix host)**, or **postern (Other host)**. NixOS and Nix bind the host store and do not install a second Nix. Other keeps a private Nix in the volume `devcontainer-nix`. Each profile adds `SYS_ADMIN` and `seccomp=unconfined` so `idf.py` can create its mount namespace. The host `/dev` is mounted at `/host-dev`. While the container runs, `serial-link.sh` links every `ttyUSB*` and `ttyACM*` node into `/dev` and does not open it. Majors 188 and 166 are allowed. On NixOS, import `.devcontainer/nixos-host/serial-udev.nix` so the session user can open the node.
 
 ## Editor
 
-`.vscode/settings.json` defines **Nix Develop** as `nix develop` with `--command zsh`. zsh is a devshell package ([P-0022](pitfalls.md#p-0022-zsh-exit-status)). The image puts `/usr/local/bin` first on `PATH`, so `nix` in the container is the copied client.
+`.vscode/settings.json` defines **Nix Develop** as a login `zsh` that runs `nix develop`. The image installs that `zsh`. `/usr/local/bin/nix` runs the host client and does not put the NixOS userland on `PATH`.
 
 Required extensions:
 

@@ -1,0 +1,9 @@
+# One devcontainer mount per line. Copied into every profile. Do not mount $HOME.
+# This clone's GitHub remote authenticates with gh. The default helper is
+# libsecret; that bus is not mounted, because GitHub does not use it.
+# Commit signing is off, and the remote is HTTPS, so the gpg agent and the
+# SSH agent are not mounted.
+
+source=${localEnv:HOME}/.config/git/config,target=/etc/gitconfig.host,type=bind,readonly
+source=${localEnv:HOME}/.config/gh,target=/home/dev/.config/gh,type=bind,readonly
+source=/etc/nix/nix.conf,target=/etc/nix/nix.conf,type=bind,readonly

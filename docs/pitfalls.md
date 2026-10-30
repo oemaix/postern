@@ -1,6 +1,6 @@
 # Pitfalls
 
-Status: baseline · 2026-10-28
+Status: baseline · 2026-10-30
 
 Open entries are binding. Do not delete an entry. Mark it resolved, with the reason, when it stops applying. New entries take the next id and are added in the same change that discovered them.
 
@@ -119,44 +119,38 @@ Agents read this file before design or implementation work, and they add to it w
 ### P-0021 Ubuntu uid 1000
 
 - **Status:** Open
-- **Avoid:** Do not create the `vscode` user with `groupadd` or `useradd` at uid 1000.
-- **Why:** `ubuntu:26.04` already has user and group `ubuntu` at 1000:1000. `groupadd --gid 1000` exits 4, and the devcontainer image build stops before Nix is installed. `.devcontainer/Dockerfile` renames that account to `vscode` and keeps its groups, including `dialout`.
-
-### P-0022 Zsh exit status
-
-- **Status:** Open
-- **Avoid:** Do not start the interactive devshell zsh with no startup file.
-- **Why:** Nix's zsh loads `zsh/newuser` when `.zshrc` is missing. As uid 0 that installer returns 1, so a following `exit` closes the terminal with status 1. The devshell sets `ZDOTDIR` to `shell/`, whose `.zshrc` shows the working directory and ends successfully. A NixOS host still sources `/etc/zshrc` after that. That file installs `command_not_found_handler`, and the handler returns 127. The devcontainer image does not have this rc. `shell/.zshenv` turns global rc files off, so a following `exit` is not that status. `/etc/zshenv` still runs. The devshell also sets `SHELL` to its own zsh. Nix's setup would otherwise leave `SHELL` as the non-interactive bash from the build environment.
+- **Avoid:** Do not `useradd` at uid 1000 while the image account `ubuntu` still holds it. Do not leave the `users` group on gid 100.
+- **Why:** `ubuntu:26.04` already has user and group `ubuntu` at 1000:1000. `groupadd --gid 1000` then exits 4 and the image build stops. The empty `users` group occupies gid 100, and `updateRemoteUserUID` refuses a gid that already exists, so the host primary group is never applied. `.devcontainer/Dockerfile` deletes the `ubuntu` account and the `users` group, then creates `dev`.
 
 ### P-0023 Container uid
 
 - **Status:** Open
-- **Avoid:** Do not set `safe.directory` so `nix develop` will open this checkout. Do not turn `updateRemoteUserUID` on. Do not leave the running `vscode` user at the image uid when the workspace owner inside the container is different.
-- **Why:** Rootless Docker maps the host user to container uid 0. `updateRemoteUserUID` copies the host number into the image, so `vscode` does not own the workspace, and `postCreateCommand` stops with libgit2 error 7. `.devcontainer/entrypoint.sh` reads the owner inside the container and moves `vscode` onto it. When that owner is uid 0, the session home is `/root`. A `safe.directory` line in `~/.gitconfig` is lost on rebuild and does not fix the written uid.
+- **Avoid:** Do not turn `updateRemoteUserUID` off. Do not `chown` the workspace. Do not write `safe.directory` into the host gitconfig. Do not pass `$USER` to `postCreateCommand`.
+- **Why:** `updateRemoteUserUID` rewrites `dev` to the host uid and primary gid ([D-0023](decisions.md#d-0023-devcontainer-profiles)). Rootless Docker shows that host user as uid 0 inside the mount. `.devcontainer/realize.sh` then runs `usermod -o` so `dev` shares uid 0 with root and the editor can save. The home stays `/home/dev`. `postCreateCommand` is not a login, so `$USER` is empty and sudo does not match. `git-identity.sh` writes a container-local `~/.gitconfig` that includes the host file and sets `safe.directory` to `/workspace`.
 
 ### P-0024 Host Nix store
 
 - **Status:** Open
-- **Avoid:** Do not `chown` `/nix` when it is a bind mount of the host store. Do not mount the host store read-write. Do not put a newline in `NIX_CONFIG`. Do not take the first profile under `/nix/var/nix/profiles/per-user/`. Do not leave `accept-flake-config` on.
-- **Why:** After the uid move the session home can be `/root`, so a home `nix.conf` is not the file Nix reads. The NixOS config bind-mounts the host `/nix` read-only. `NIX_CONFIG` is one line. A newline in `containerEnv` arrives as `\` and `n`, and `.devcontainer/nix.sh` rewrites that sequence. `/etc/nix/nix.conf` sets `accept-flake-config = false` and `sandbox = false`. The wrapper uses the host daemon when its socket is present, and selects the system profile, then the default profile, then the current user's profile.
+- **Avoid:** Do not `chown` a host store. Do not `chown -R` the private volume. Do not write `sandbox = false` into the host `nix.conf`. Do not prepend `/run/current-system/sw/bin` to the shell `PATH`. Do not take the first profile under `/nix/var/nix/profiles/per-user/`.
+- **Why:** NixOS and Nix bind the host store and use its daemon ([D-0023](decisions.md#d-0023-devcontainer-profiles)). The store's objects belong to that daemon. Other chowns only the empty `/nix` directory so the installer can write it. `sandbox = false` is written only into the container home, and only when the daemon socket is absent. The image `/etc/nix/nix.conf` sets `experimental-features = nix-command flakes`. The host file is mounted over it when that file already sets `experimental-features`. `/usr/local/bin/nix` execs the NixOS client, then the default profile, then the per-user profile owned by this uid. It does not put the NixOS userland on `PATH`.
 
 ### P-0025 One devcontainer for every host
 
 - **Status:** Open
-- **Avoid:** Do not bind-mount the host `/nix` from **Postern (Nix on Ubuntu)**. Do not send a host that has no `/nix` through **Postern (NixOS host store)**.
-- **Why:** The mount hides the Nix store installed in the image. On a host with no `/nix`, Docker creates an empty directory and the image `nix` is gone ([D-0018](decisions.md#d-0018-devcontainer)).
+- **Avoid:** Do not bind-mount the host `/nix` from **postern (Other host)**. Do not give the volume `devcontainer-nix` to **postern (NixOS host)** or **postern (Nix host)**.
+- **Why:** A host with no `/nix` makes Docker create an empty directory when that path is bind-mounted, and the shell is gone ([D-0023](decisions.md#d-0023-devcontainer-profiles)). Other uses the named volume and installs a private Nix there. NixOS and Nix bind the host store and do not install a second Nix. `require-host.sh` refuses the wrong profile.
 
 ### P-0026 Floating Nix installer
 
 - **Status:** Open
-- **Avoid:** Do not install Nix from `https://nixos.org/nix/install`.
-- **Why:** That URL is the current installer. A later image rebuild can change the Nix version. `.devcontainer/Dockerfile` pins Nix 2.35.4 ([D-0018](decisions.md#d-0018-devcontainer)).
+- **Avoid:** Do not install Nix in the image. Do not install Nix on the NixOS or Nix profiles.
+- **Why:** Those profiles bind the host store ([D-0023](decisions.md#d-0023-devcontainer-profiles)). A second Nix there fights the host daemon. The Other profile runs `https://nixos.org/nix/install` with `--no-daemon` into the volume `devcontainer-nix`, and only when that volume has no profile for this uid. The image does not pin a Nix version.
 
 ### P-0027 Checkout directory name
 
 - **Status:** Open
-- **Avoid:** Do not hardcode `/workspaces/postern` in the entrypoint or the image `WORKDIR`.
-- **Why:** Dev Containers mounts the checkout at `/workspaces/` plus the directory name. A clone under another name leaves `vscode` on the image uid ([P-0023](#p-0023-container-uid)). Both configs set `DEVCONTAINER_WORKSPACE` to `${containerWorkspaceFolder}`.
+- **Avoid:** Do not hardcode `/workspaces/postern` or the host directory name. Do not leave the checkout on the default `/workspaces/<name>` mount.
+- **Why:** `workspaceMount` bind-mounts the checkout at `/workspace`, which is also the image `WORKDIR` ([D-0023](decisions.md#d-0023-devcontainer-profiles)). `sudo` clears `containerWorkspaceFolder`, so the scripts cannot recover the path from the environment. A clone under another name still lands at `/workspace`.
 
 ### P-0028 Python in the flake
 
@@ -174,19 +168,19 @@ Agents read this file before design or implementation work, and they add to it w
 
 - **Status:** Open
 - **Avoid:** Do not expect one `~/.espressif` tree to work under a different home. Do not commit `~/.espressif` or `~/.cache/espidf-nix`. Do not rewrite the activation script to one absolute path. Do not point `IDF_VERSION` at an unpinned tag.
-- **Why:** [D-0022](decisions.md#d-0022-idf-in-the-shell). [hnaderi/espidf-nix](https://github.com/hnaderi/espidf-nix) puts `idf.py` on `PATH`. Espressif's installer writes v6.1 under `~/.espressif` the first time that command runs. The store holds the wrapper, not the chip tools. The installer writes absolute paths into the activation script and the virtualenv shebangs. In the devcontainer that home is `/root` ([P-0023](#p-0023-container-uid)). The bind mount stores those files in the login user's `~/.espressif`. On the host the `/root` paths are not that tree. The devshell puts wrappers ahead of `idf.py`. When the user's tree exists and `/root/.espressif` does not, the wrapper bind-mounts the tree at `/root/.espressif` for that command. The container already has `/root/.espressif`, so the wrapper runs the real command there.
+- **Why:** [D-0022](decisions.md#d-0022-idf-in-the-shell). [hnaderi/espidf-nix](https://github.com/hnaderi/espidf-nix) puts `idf.py` on `PATH`. Espressif's installer writes v6.1 under `~/.espressif` the first time that command runs. The store holds the wrapper, not the chip tools. The installer writes absolute paths into the activation script and the virtualenv shebangs. That home is the home of the user who runs the command. In the container it is `/home/dev`, not the host home, and the shell does not bind one tree onto the other.
 
 ### P-0032 FHS namespace
 
 - **Status:** Open
 - **Avoid:** Do not drop [hnaderi/espidf-nix](https://github.com/hnaderi/espidf-nix) because bubblewrap failed in one container. Do not replace it with an ESP-IDF flake pinned to an older nixpkgs.
-- **Why:** `idf.py` runs inside `buildFHSEnv`. That needs a new mount namespace. A container that forbids it stops at `bwrap: Creating new namespace failed`. Both devcontainers add `SYS_ADMIN` and `seccomp=unconfined` ([D-0022](decisions.md#d-0022-idf-in-the-shell)). A running container does not gain that until it is rebuilt. The wrapper is still the shell's `idf.py`.
+- **Why:** `idf.py` runs inside `buildFHSEnv`. That needs a new mount namespace. A container that forbids it stops at `bwrap: Creating new namespace failed`. Each profile adds `SYS_ADMIN` and `seccomp=unconfined` ([D-0022](decisions.md#d-0022-idf-in-the-shell)). A running container does not gain that until it is rebuilt. The wrapper is still the shell's `idf.py`.
 
 ### P-0033 Serial device node
 
 - **Status:** Open
-- **Avoid:** Do not `mknod` the serial node inside the container. Do not mount the host `/dev` on the container `/dev`. Do not bind one host device inode with `--device`. Do not make the host nodes world-writable. Do not name a baud rate or a flash offset in `devcontainer.json`. Do not treat a `uaccess` tag on the parent USB device as access to the tty node. Do not link only `ttyUSB0` and `ttyACM0`. Do not open the host tty from the entrypoint scan.
-- **Why:** The bench nodes are `ttyUSB*` (major 188) and `ttyACM*` (major 166). Rootless Docker maps container uid 0 to the host user. `mknod` in that user namespace returns EPERM. A `--device` bind is one host inode and disappears when the cable is unplugged. Both configs bind the host `/dev` at `/host-dev`. The entrypoint links each `ttyUSB*` and `ttyACM*` node into `/dev` and repeats the scan while the container runs. Opening the node from that scan toggles modem lines and resets the board. `idf.py` bind-mounts `/dev` and `/host-dev` when it starts. The device cgroup allows majors 188 and 166. Host group `dialout` is not a gid in this map, and mode `0660` is not readable here until the host grants the session user. `.devcontainer/nixos-host/serial.rules` sets that mode, group `dialout`, and `TAG+="uaccess"` on every such node. NixOS imports `.devcontainer/nixos-host/serial-udev.nix`. A tag on the parent USB device does not do that. The entrypoint is copied into the image, so a running container stays on the old scan until it is rebuilt.
+- **Avoid:** Do not `mknod` the serial node inside the container. Do not mount the host `/dev` on the container `/dev`. Do not bind one host device inode with `--device`. Do not `--group-add dialout`. Do not make the host nodes world-writable. Do not name a baud rate or a flash offset in `devcontainer.json`. Do not treat a `uaccess` tag on the parent USB device as access to the tty node. Do not link only `ttyUSB0` and `ttyACM0`. Do not open the host tty from the serial scan.
+- **Why:** The bench nodes are `ttyUSB*` (major 188) and `ttyACM*` (major 166). Rootless Docker maps container uid 0 to the host user, then drops the host supplementary groups. `mknod` in that user namespace returns EPERM. A `--device` bind is one host inode and disappears when the cable is unplugged. `--group-add dialout` adds a container gid, not the host `dialout` gid. Each profile bind-mounts the host `/dev` at `/host-dev`. `.devcontainer/serial-link.sh` links each `ttyUSB*` and `ttyACM*` node into `/dev` and repeats the scan while the container runs. Opening the node from that scan toggles modem lines and resets the board. `idf.py` bind-mounts `/dev` and `/host-dev` when it starts. The device cgroup allows majors 188 and 166. Mode `0660` is not readable here until the host grants the session user. `.devcontainer/nixos-host/serial.rules` sets that mode, group `dialout`, and `TAG+="uaccess"` on every such node. NixOS imports `.devcontainer/nixos-host/serial-udev.nix`. A tag on the parent USB device does not do that. That script is copied into the image, so a running container stays on the old scan until it is rebuilt.
 
 ### P-0034 One image
 
@@ -207,6 +201,12 @@ Agents read this file before design or implementation work, and they add to it w
 - **Status:** Resolved
 - **Avoid:** Do not add `main/`, a partition table, or a flashable example in this repository.
 - **Why:** Resolved 2026-10-30. [D-0021](decisions.md#d-0021-image) makes this repository the Stamp Pico image, so `main/` is the image entry. The binding rule is [P-0034](#p-0034-one-image).
+
+### P-0022 Zsh exit status
+
+- **Status:** Resolved
+- **Avoid:** Do not start the interactive devshell zsh with no startup file.
+- **Why:** Resolved 2026-10-30. The flake does not set `ZDOTDIR` or `SHELL`, and `shell/.zshrc` is gone. The terminal starts a login `zsh`, then `nix develop`.
 
 ### P-0029 esptool in the flake
 

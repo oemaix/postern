@@ -16,3 +16,6 @@
 /managed_components/
 /dependencies.lock
 .venv
+
+# Written by the devcontainer initializeCommand.
+.devcontainer/host-user

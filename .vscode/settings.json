@@ -3,18 +3,16 @@
   "terminal.integrated.defaultProfile.osx": "Nix Develop",
   "terminal.integrated.profiles.linux": {
     "Nix Develop": {
-      "path": "nix",
-      "args": ["develop", "${workspaceFolder}", "--command", "zsh"],
-      "cwd": "${workspaceFolder}",
+      "path": "zsh",
+      "args": ["-lc", "exec nix develop -c \"$(command -v zsh)\""],
       "overrideName": true,
       "icon": "terminal-linux"
     }
   },
   "terminal.integrated.profiles.osx": {
     "Nix Develop": {
-      "path": "nix",
-      "args": ["develop", "${workspaceFolder}", "--command", "zsh"],
-      "cwd": "${workspaceFolder}",
+      "path": "zsh",
+      "args": ["-lc", "exec nix develop -c \"$(command -v zsh)\""],
       "overrideName": true,
       "icon": "terminal-linux"
     }

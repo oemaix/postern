@@ -1,6 +1,6 @@
 # Decisions
 
-Status: baseline · 2026-10-28
+Status: baseline · 2026-10-30
 
 Ids are stable. A new decision takes the next number. Status is Decided or Undecided. A recommendation is not a decision.
 
@@ -23,11 +23,12 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 | [D-0015](#d-0015-python) | Decided | Superseded by D-0019 |
 | [D-0016](#d-0016-i2c-address) | Decided | 7-bit address `0x1D` |
 | [D-0017](#d-0017-reference-pins) | Decided | Stamp Pico GPIO defaults |
-| [D-0018](#d-0018-devcontainer) | Decided | Ubuntu 26.04, Nix 2.35.4, two host configs |
+| [D-0018](#d-0018-devcontainer) | Decided | Superseded by D-0023 |
 | [D-0019](#d-0019-python-out-of-the-flake) | Decided | No project Python in the flake; a later `.venv` uses `uv` |
 | [D-0020](#d-0020-no-esptool) | Decided | Superseded by D-0022 |
 | [D-0021](#d-0021-image) | Decided | This repository is the Stamp Pico image |
 | [D-0022](#d-0022-idf-in-the-shell) | Decided | `idf.py` is ESP-IDF v6.1 through EIM on this pin |
+| [D-0023](#d-0023-devcontainer-profiles) | Decided | Ubuntu 26.04 session, three host profiles, host Nix |
 
 ## Decided
 
@@ -159,7 +160,7 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 - **Status:** Decided
 - **Choice:** The optional container is Ubuntu 26.04 with single-user Nix 2.35.4. Reopen in Container offers **Postern (Nix on Ubuntu)** and **Postern (NixOS host store)**. They share `.devcontainer/Dockerfile`. The host-store config bind-mounts `/nix` read-only and uses the host daemon.
 - **Source:** The same container shape as Porta, 2026-10-29. Opening this repository alone needs its own image. Porta's container remains the one for the product checkout.
-- **Consequence:** The installer URL is pinned ([P-0026](pitfalls.md#p-0026-floating-nix-installer)). `sandbox = false` stays in the image. The entrypoint moves `vscode` onto the workspace owner inside the container ([P-0023](pitfalls.md#p-0023-container-uid)). `DEVCONTAINER_WORKSPACE` is that path ([P-0027](pitfalls.md#p-0027-checkout-directory-name)). Only the NixOS config mounts `/nix` ([P-0025](pitfalls.md#p-0025-one-devcontainer-for-every-host)). `/etc/nix/nix.conf` sets `accept-flake-config = false` ([P-0024](pitfalls.md#p-0024-host-nix-store)). The terminal profile is `.vscode/settings.json`. zsh comes from the devshell ([P-0022](pitfalls.md#p-0022-zsh-exit-status)).
+- **Consequence:** Superseded by [D-0023](#d-0023-devcontainer-profiles). The original consequence pinned Nix 2.35.4, kept `sandbox = false` in the image, and moved a `vscode` account from an entrypoint.
 
 ### D-0015 Python
 
@@ -194,4 +195,11 @@ Ids are stable. A new decision takes the next number. Status is Decided or Undec
 - **Status:** Decided
 - **Choice:** The devshell provides `idf.py` for ESP-IDF v6.1 from [hnaderi/espidf-nix](https://github.com/hnaderi/espidf-nix), built with this nixpkgs pin, for the `esp32` target. Espressif's Installation Manager writes the chip tools under `~/.espressif` on the first run. `esptool.py` is that wrapper's tool. The nixpkgs `esptool` package stays out. This supersedes [D-0010](#d-0010-no-idf-yet) and [D-0020](#d-0020-no-esptool).
 - **Source:** Project decision, 2026-10-30. The same shape as Porta D-0028. The image in [D-0021](#d-0021-image) is what this shell builds and flashes.
-- **Consequence:** `nix develop` puts `idf.py` on `PATH`. The chip toolchain is not in the Nix store ([P-0031](pitfalls.md#p-0031-install-home)). The command needs a mount namespace ([P-0032](pitfalls.md#p-0032-fhs-namespace)). A devcontainer install records `/root` in `~/.espressif`. On the host the shell binds the login user's tree there when that prefix is missing. A Nix flake pinned to an older nixpkgs stays out ([P-0006](pitfalls.md#p-0006-idf-flake)). Flash with `idf.py -p` and the port chosen at that moment. The container links the host `ttyUSB*` and `ttyACM*` nodes ([P-0033](pitfalls.md#p-0033-serial-device-node)). This repository does not name a port, a baud rate, or an offset.
+- **Consequence:** `nix develop` puts `idf.py` on `PATH`. The chip toolchain is not in the Nix store ([P-0031](pitfalls.md#p-0031-install-home)). The command needs a mount namespace ([P-0032](pitfalls.md#p-0032-fhs-namespace)). The installer writes the tree under the home of the user who runs `idf.py`. The shell does not bind that tree onto another home. A Nix flake pinned to an older nixpkgs stays out ([P-0006](pitfalls.md#p-0006-idf-flake)). Flash with `idf.py -p` and the port chosen at that moment. The container links the host `ttyUSB*` and `ttyACM*` nodes ([P-0033](pitfalls.md#p-0033-serial-device-node)). This repository does not name a port, a baud rate, or an offset.
+
+### D-0023 Devcontainer profiles
+
+- **Status:** Decided
+- **Choice:** The optional container is an Ubuntu 26.04 user session. The flake stays the environment. Opening the folder asks which profile: **postern (NixOS host)**, **postern (Nix host)**, or **postern (Other host)**. NixOS and Nix bind the host store and use the host daemon. They do not install a second Nix. Other keeps a private Nix in the volume `devcontainer-nix` and runs the official installer when that volume has no profile. This supersedes [D-0018](#d-0018-devcontainer).
+- **Source:** Project decision, 2026-10-30. The container follows the host Nix. The host shell is unchanged when Docker is never opened.
+- **Consequence:** The account is `dev`, and `updateRemoteUserUID` is on ([P-0023](pitfalls.md#p-0023-container-uid)). The checkout is mounted at `/workspace` ([P-0027](pitfalls.md#p-0027-checkout-directory-name)). Each profile adds `SYS_ADMIN` and `seccomp=unconfined` ([P-0032](pitfalls.md#p-0032-fhs-namespace)). `serial-link.sh` links `ttyUSB*` and `ttyACM*` ([P-0033](pitfalls.md#p-0033-serial-device-node)). On NixOS, import `.devcontainer/nixos-host/serial-udev.nix`. The image does not install Nix ([P-0026](pitfalls.md#p-0026-floating-nix-installer)). The image `zsh` is the Ubuntu package the terminal profile starts before `nix develop`.
