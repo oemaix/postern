@@ -2,7 +2,7 @@
 
 Postern is the firmware for the M5Stamp Pico. It takes I2S from a peer that owns the clocks and sends that audio to Bluetooth headphones. This repository is that image, and it is developed on its own. The bridge logic is the component `components/postern`. Another ESP-IDF project reuses that directory and chooses its own pins.
 
-**Status:** Phase 1 code is in the component: I2S slave, I2C register driver, and A2DP with AAC-LC and an SBC fallback. `main` calls `postern_init`. It has not been run on a board. The current phase is in [docs/roadmap.md](docs/roadmap.md).
+**Status:** Development is stalled. This module is not in use, so work stops until a project needs it again. The Phase 1 code is in the component as it stands: I2S slave, I2C register driver, and A2DP with AAC-LC and an SBC fallback. `main` calls `postern_init`. It has not been tested. The current phase is in [docs/roadmap.md](docs/roadmap.md).
 
 ## Documentation
 
